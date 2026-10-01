@@ -1,0 +1,24 @@
+# Normalise line endings on the way in, so a file's bytes do not depend on
+# whether the contributor happened to be on Windows.
+#
+# Without this, every clone on Windows rewrites 280 files, which buries a real
+# change in 280 warnings and makes `git diff` show whole-file changes for a
+# one-character edit.
+* text=auto eol=lf
+
+# Windows-native, keep CRLF: PowerShell 5.1 is the interpreter these run under.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Never touch these - they must keep whatever bytes they have.
+*.jar binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.ico binary
+
+# Generated or environment-specific, kept out of diffs even if a tool creates
+# them in the tree by accident.
+package-lock.json -diff linguist-generated
+tsconfig.tsbuildinfo binary
