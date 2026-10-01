@@ -30,6 +30,7 @@ param(
 $ErrorActionPreference = 'Continue'
 
 $script:Pass = 0
+$script:rateLimitRetries = 0
 $script:Fail = 0
 
 function Say($msg, $colour = 'Gray') { Write-Host $msg -ForegroundColor $colour }
@@ -59,16 +60,47 @@ function Invoke-Prism {
     $params.ContentType = 'application/json'
     $params.Body = ($Body | ConvertTo-Json -Depth 8)
   }
-  try {
-    return Invoke-RestMethod @params
-  } catch {
-    # PowerShell 5.1 in NonInteractive mode makes the response body unreadable
-    # on a failed call, so the status is captured here and thrown as a
-    # comparable object rather than swallowed.
-    $status = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-    $err = [pscustomobject]@{ Status = $status; Message = $_.Exception.Message }
-    throw $err
+
+  # A Council run makes well over a hundred calls, and a debate round alone
+  # issues three per persona. Without back-off this script only passes when it
+  # is the first thing to touch the API -- running it twice in a row, or after
+  # the smoke test, gets it rate limited and it fails at an arbitrary step,
+  # which reads like a system defect and is not one. The rate limiter is
+  # behaving correctly; the test was the thing that could not cope with it.
+  $MaxAttempts = 8
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    try {
+      return Invoke-RestMethod @params
+    } catch {
+      $status = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+
+      if ($status -eq 429 -and $attempt -lt $MaxAttempts) {
+        $script:rateLimitRetries++
+        # Honour Retry-After when the server sends one, else exponential back-off
+        # capped at 8s. The jitter stops a concurrent script from re-colliding
+        # at the same instant the window rolls over.
+        $wait = [Math]::Min(8000, 250 * [Math]::Pow(2, $attempt - 1))
+        try {
+          $header = $_.Exception.Response.Headers['Retry-After']
+          if ($header) {
+            $parsed = 0
+            if ([int]::TryParse(($header | Select-Object -First 1), [ref]$parsed)) {
+              $wait = [Math]::Max($wait, $parsed * 1000)
+            }
+          }
+        } catch { }
+        Start-Sleep -Milliseconds ($wait + (Get-Random -Minimum 0 -Maximum 120))
+        continue
+      }
+
+      # PowerShell 5.1 in NonInteractive mode makes the response body unreadable
+      # on a failed call, so the status is captured here and thrown as a
+      # comparable object rather than swallowed.
+      $err = [pscustomobject]@{ Status = $status; Message = $_.Exception.Message }
+      throw $err
+    }
   }
+  throw "rate limit did not clear after $MaxAttempts attempts"
 }
 
 # ---- sign in --------------------------------------------------------------
@@ -445,12 +477,21 @@ if ($debateTraces.Count -gt 0) {
 
 # ---- summary --------------------------------------------------------------
 
+# The rate-limit retries are reported rather than hidden. A run that silently
+# backed off five times and a run that never needed to are the same result, but
+# only one of them tells you the run was near the limiter's ceiling.
+$backoffNote = ''
+if ($script:rateLimitRetries -gt 0) {
+  $backoffNote = "  ({0} rate-limit backoff(s))" -f $script:rateLimitRetries
+}
+
 Write-Host ''
 Write-Host ('=' * 68) -ForegroundColor DarkGray
 if ($script:Fail -eq 0) {
-  Write-Host ("COUNCIL FLOW OK   {0} checks passed" -f $script:Pass) -ForegroundColor Green
+  Write-Host ("COUNCIL FLOW OK   {0} checks passed{1}" -f $script:Pass, $backoffNote) -ForegroundColor Green
   exit 0
 } else {
-  Write-Host ("COUNCIL FLOW FAILED   {0} passed, {1} failed" -f $script:Pass, $script:Fail) -ForegroundColor Red
+  Write-Host ("COUNCIL FLOW FAILED   {0} passed, {1} failed{2}" -f `
+      $script:Pass, $script:Fail, $backoffNote) -ForegroundColor Red
   exit 1
 }

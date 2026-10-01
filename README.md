@@ -152,10 +152,15 @@ silence from substance.
 # 23-step API walk over the whole pipeline
 powershell -File scripts/smoke-test.ps1 -Username <u> -Password <p>
 
-# 79-check Council lifecycle: convene -> 3 rounds -> chair weights ->
+# 78-check Council lifecycle: convene -> 3 rounds -> chair weights ->
 # round ceiling -> synthesis -> report -> Glass Box
 powershell -File scripts/council-test.ps1 -CorpusId 1 -Username <u> -Password <p> -Rounds 3
 ```
+
+Both scripts retry on `429` with back-off and report how many retries they took.
+A Council run makes well over a hundred calls, so without that it only passes
+when it is the first thing to touch the API — which makes it a flaky test rather
+than a reliable one.
 
 ```bash
 cd backend && mvn test      # 107 tests
