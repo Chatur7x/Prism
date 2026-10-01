@@ -1,0 +1,42 @@
+# =============================================================================
+# PRISM
+# =============================================================================
+
+# ---- secrets ---------------------------------------------------------------
+# .env holds JWT_SECRET and the database password. It must never be committed.
+# .env.example is committed deliberately: it documents every variable without
+# carrying a value.
+.env
+.env.local
+.env.*.local
+
+# ---- build output ----------------------------------------------------------
+backend/target/
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# ---- local artefacts -------------------------------------------------------
+# Regenerated from a running instance by dumping the OpenAPI document. It is
+# derived state: committing it would mean the contract in the repository can
+# drift from the contract the server actually serves, which is the opposite of
+# what it is for.
+docs/openapi.json
+
+# Editor and OS state
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+*.swp
+
+# ---- tool caches -----------------------------------------------------------
+.mvn/
+.mvn/wrapper/maven-wrapper.jar
+*.tsbuildinfo
+.eslintcache

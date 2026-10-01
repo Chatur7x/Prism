@@ -1,0 +1,158 @@
+# =============================================================================
+# PRISM: MySQL, the Spring backend, and the nginx-served frontend.
+# =============================================================================
+#
+#   docker compose up -d --build
+#   docker compose logs -f backend
+#   docker compose down          # keeps the database volume
+#   docker compose down -v       # also deletes the database
+#
+# Secrets come from the environment with no defaults for the two that matter.
+# JWT_SECRET has no default on purpose: an image that starts with a known signing
+# key is an image where every deployment shares that key, and every token it has
+# ever issued is forgeable. Compose will refuse to start without it.
+# =============================================================================
+
+name: prism
+
+services:
+
+  # ---- database ------------------------------------------------------------
+  mysql:
+    image: mysql:8.0.36
+    container_name: prism-mysql
+    restart: unless-stopped
+    environment:
+      # A fixed root password is a development convenience and is called out as
+      # such by the MySQL image itself. It is not a production posture: a
+      # deployment should use a generated value and a secret store.
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpw}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-prism}
+      MYSQL_USER: ${DB_USERNAME:-prism}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-prism}
+    command:
+      # utf8mb4 end to end. The default latin1 would silently mangle any
+      # document containing a non-Latin character, which for a text-analysis
+      # system is a correctness failure, not a display one.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # The extraction pipeline runs several documents concurrently, each
+      # touching the same handful of entity rows. The default 50-second lock
+      # timeout meant a contended increment could take a minute to fail; a
+      # shorter one turns a rare stall into a prompt, retryable error instead.
+      - --innodb-lock-wait-timeout=15
+      # The FULLTEXT index over document chunks is built once, so a larger
+      # buffer pool is worth it; the log buffer avoids a disk flush per commit
+      # during a 24-document import.
+      - --innodb-buffer-pool-size=512M
+      - --innodb-log-buffer-size=32M
+      # A statement that has been running for two minutes is a bug, not a slow
+      # query. Failing loudly surfaces it instead of quietly holding locks.
+      - --max-execution-time=120000
+    ports:
+      # Published so the schema can be inspected with a normal client. Remove
+      # this line to keep the database reachable only on the compose network,
+      # which is the right thing to do outside development.
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - prism-db:/var/lib/mysql
+    healthcheck:
+      # `mysqladmin ping` succeeds before the server is ready to serve queries on
+      # a cold start, so the backend's depends_on would let Flyway connect and
+      # fail. Selecting the schema forces a real round trip.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpw}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - prism
+
+  # ---- backend -------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: prism-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        # Waits for healthy, not merely started. Without this the backend races
+        # Flyway against MySQL's own initialisation and the first start fails
+        # with a connection error that looks like a configuration problem.
+        condition: service_healthy
+    environment:
+      DB_URL: "jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-prism}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8"
+      DB_USERNAME: ${DB_USERNAME:-prism}
+      DB_PASSWORD: ${DB_PASSWORD:-prism}
+      # No default. If this is unset, compose substitutes an empty string and
+      # the application fails its own secret-strength validation at boot, which
+      # is the intended failure: refuse to start rather than start insecure.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your environment or .env - at least 32 characters}
+      # Empty means "same origin only", which is the correct default when the
+      # frontend is served by the nginx container in this same compose file.
+      # Set it only when running the Vite dev server against this backend.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      # 12 is the floor enforced by PasswordPolicy, and the compose file holds to
+      # it so a weak demo password cannot be seeded here and then fail in a
+      # deployed environment.
+      SECURITY_PASSWORD_MIN_LENGTH: ${SECURITY_PASSWORD_MIN_LENGTH:-12}
+      LOGGING_LEVEL_COM_PRISM: ${LOGGING_LEVEL_COM_PRISM:-INFO}
+      SERVER_PORT: "8080"
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      # 127.0.0.1 rather than localhost, for the same reason as the frontend's
+      # healthcheck: a name that can resolve to ::1 in a container probes an
+      # address nothing is listening on.
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    networks:
+      - prism
+
+  # ---- frontend ------------------------------------------------------------
+  frontend:
+    build:
+      # The repository root, not ./frontend: the nginx configuration lives at
+      # docker/nginx/ and has to be copied into the image. The root .dockerignore
+      # keeps the context small.
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: prism-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        # The frontend serves static files and would start perfectly well
+        # without a backend, so this is about ordering for the operator rather
+        # than correctness. It is service_started, not service_healthy, so a
+        # slow first-run migration does not also delay the UI becoming reachable.
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    healthcheck:
+      # 127.0.0.1, not localhost. nginx's `listen 80` binds IPv4 only, while
+      # `localhost` resolves to ::1 first inside a container, so probing the name
+      # always got connection refused and the frontend reported itself
+      # permanently unhealthy while serving perfectly well.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 4s
+      retries: 3
+      start_period: 10s
+    networks:
+      - prism
+
+volumes:
+  prism-db:
+    driver: local
+
+networks:
+  prism:
+    driver: bridge

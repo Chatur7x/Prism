@@ -1,0 +1,23 @@
+# The backend image builds from ./backend, so this keeps the Maven target
+# directory, any local logs, and any stray editor state out of the context.
+# Excluding target/ matters most: without it a local build's class files are
+# uploaded and then overwritten inside the image, which wastes context and can
+# leave stale classes in a layer if the build is ever skipped.
+
+target/
+*.log
+logs/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Version control and editor state
+.git/
+.gitignore
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db

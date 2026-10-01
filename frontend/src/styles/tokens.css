@@ -1,0 +1,217 @@
+/*
+ * PRISM design tokens.
+ *
+ * Serious analytical-tool aesthetic: high information density, restrained
+ * palette, typography that favours reading long evidence text.
+ *
+ * ACCESSIBILITY: trust level is never encoded in colour alone. Every status
+ * badge carries a text label and a distinct shape/border treatment, so the
+ * distinction survives greyscale, colour-blindness, and screen readers.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --surface-0: #ffffff;
+  --surface-1: #f7f8fa;
+  --surface-2: #eef0f4;
+  --surface-3: #e3e6ec;
+  --surface-inset: #f2f4f7;
+
+  /* Ink */
+  --ink-0: #12151a;
+  --ink-1: #3d4451;
+  --ink-2: #6b7382;
+  --ink-3: #98a0af;
+
+  /* Lines */
+  --line-1: #dde1e8;
+  --line-2: #c6ccd6;
+
+  /* Accent: the "prism" mark */
+  --accent: #2f5fd0;
+  --accent-ink: #ffffff;
+  --accent-soft: #e8eefc;
+
+  /* Trust semantics. Always paired with a label in the UI. */
+  --trust-approved: #1c7a4a;
+  --trust-approved-bg: #e3f5ec;
+  --trust-pending: #8a5a00;
+  --trust-pending-bg: #fdf1dc;
+  --trust-rejected: #a32b2b;
+  --trust-rejected-bg: #fceaea;
+  --trust-verified: #1d5f8a;
+  --trust-verified-bg: #e2f0f9;
+  --trust-contradicted: #8a2f6b;
+  --trust-contradicted-bg: #fae6f3;
+  --trust-missing: #5a5f6b;
+  --trust-missing-bg: #eceef2;
+
+  /* Actor semantics, used by the Glass Box */
+  --actor-engine: #2f5fd0;
+  --actor-engine-bg: #e8eefc;
+  --actor-llm: #6a3bb5;
+  --actor-llm-bg: #f0e8fb;
+  --actor-human: #1c7a4a;
+  --actor-human-bg: #e3f5ec;
+
+  --danger: #a32b2b;
+  --danger-bg: #fceaea;
+  --warning: #8a5a00;
+  --warning-bg: #fdf1dc;
+
+  --radius-sm: 3px;
+  --radius: 5px;
+  --radius-lg: 8px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --shadow-sm: 0 1px 2px rgba(18, 21, 26, 0.06);
+  --shadow: 0 2px 6px rgba(18, 21, 26, 0.08);
+  --shadow-lg: 0 8px 24px rgba(18, 21, 26, 0.12);
+
+  --focus-ring: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-0: #14171c;
+    --surface-1: #1a1e24;
+    --surface-2: #21262e;
+    --surface-3: #2b313a;
+    --surface-inset: #191d23;
+
+    --ink-0: #eef1f5;
+    --ink-1: #c3cad4;
+    --ink-2: #949cab;
+    --ink-3: #6b7381;
+
+    --line-1: #2b313a;
+    --line-2: #3a414c;
+
+    --accent: #7ba0f0;
+    --accent-ink: #10141b;
+    --accent-soft: #1c2740;
+
+    --trust-approved: #63c294;
+    --trust-approved-bg: #16301f;
+    --trust-pending: #dba44a;
+    --trust-pending-bg: #322611;
+    --trust-rejected: #e08585;
+    --trust-rejected-bg: #331a1a;
+    --trust-verified: #74b6e0;
+    --trust-verified-bg: #16293a;
+    --trust-contradicted: #d98ac0;
+    --trust-contradicted-bg: #301a29;
+    --trust-missing: #9aa2b0;
+    --trust-missing-bg: #23272e;
+
+    --actor-engine: #7ba0f0;
+    --actor-engine-bg: #1c2740;
+    --actor-llm: #b294ec;
+    --actor-llm-bg: #251a3a;
+    --actor-human: #63c294;
+    --actor-human-bg: #16301f;
+
+    --danger: #e08585;
+    --danger-bg: #331a1a;
+    --warning: #dba44a;
+    --warning-bg: #322611;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-0);
+  background: var(--surface-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 var(--space-3);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 22px;
+}
+h2 {
+  font-size: 17px;
+}
+h3 {
+  font-size: 15px;
+}
+h4 {
+  font-size: 13px;
+}
+
+p {
+  margin: 0 0 var(--space-3);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+code,
+pre,
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+/* Visible focus for keyboard users only. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,572 @@
+/*
+ * Layout and page-composition layer.
+ *
+ * `tokens.css` holds the design decisions as variables and `components.css`
+ * holds reusable components (cards, tables, badges, buttons). This file holds
+ * the things that are specific to how PRISM's screens are arranged: the
+ * document reset, the app shell grid, and the composite structures that only
+ * one or two pages use — the chat log, the Council chamber, the trace tree.
+ *
+ * Splitting it this way is not arbitrary. A page that needs a new look should
+ * not require re-reading 665 lines of component CSS, and a change to a badge
+ * should not risk reflowing the trace tree.
+ */
+
+/* ---- reset -------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-1);
+  color: var(--ink-0);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.011em;
+}
+
+p {
+  margin: 0 0 var(--space-3);
+}
+
+p:last-child {
+  margin-bottom: 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+ul,
+ol {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-5);
+}
+
+li {
+  margin-bottom: var(--space-1);
+}
+
+hr {
+  height: 1px;
+  margin: var(--space-4) 0;
+  border: 0;
+  background: var(--line-1);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Every interactive element gets the same focus treatment. Removing outlines
+ * without a replacement is the single most common way an application becomes
+ * unusable by keyboard, so the ring is defined once, here. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* Long identifiers — trace ids, hashes, job keys — must never widen a table or
+ * a card. Breaking them is correct: they are not prose. */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  font-variant-ligatures: none;
+}
+
+.strong {
+  font-weight: 600;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* `.small` is one step below the 14px body size, for secondary prose that
+ * should not compete with the primary content but still needs to be read. */
+.small {
+  font-size: 13px;
+}
+
+/* `.text` is a multi-line input. It is not a `<textarea class>` convention for
+ * its own sake: the only place PRISM takes free-form multi-line text is a
+ * decision note, and that deserves a visible affordance for multiple lines. */
+textarea.text,
+input.text {
+  min-height: 72px;
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* ---- form controls ------------------------------------------------------ */
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  font-size: 13px;
+}
+
+input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-3);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: not-allowed;
+}
+
+/* A file input needs its own treatment: the native control renders a button
+ * and a truncated filename, and inside a `.field` the two together wrap badly
+ * on narrow columns. */
+.file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius);
+  background: var(--surface-inset);
+}
+
+.file input[type='file'] {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 13px;
+}
+
+/* ---- app shell ---------------------------------------------------------- */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6) var(--space-7);
+}
+
+/* Below the tablet width the sidebar becomes a horizontal strip rather than
+ * collapsing, because every one of PRISM's fourteen routes has to stay
+ * reachable without a JavaScript-driven drawer. */
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    overflow: auto;
+  }
+
+  .main {
+    padding: var(--space-4);
+    overflow: visible;
+  }
+}
+
+/* ---- select lists ------------------------------------------------------- */
+
+/* Used for picking one item from many: corpora, conversations, debates.
+ * A `<select>` cannot show a title, a status, and a count per option, and that
+ * context is what makes a reviewer able to choose correctly. */
+.list-select {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.list-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--line-1);
+  border-left: 3px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.list-item:hover {
+  background: var(--surface-inset);
+}
+
+.list-item.active {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---- chat --------------------------------------------------------------- */
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 320px;
+  max-height: 58vh;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.chat-msg {
+  max-width: 82%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-0);
+}
+
+.chat-msg.from-user {
+  align-self: flex-end;
+  border-color: var(--line-2);
+  background: var(--surface-inset);
+}
+
+/* The three assistant states are visually distinct on purpose. A refusal and a
+ * grounded answer must never be scannable as the same kind of message, because
+ * the whole point of the refusal is that it is not an answer. */
+.chat-msg.state-refused {
+  border-color: var(--trust-missing);
+  background: var(--trust-missing-bg);
+}
+
+.chat-msg.state-unverified {
+  border-color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.chat-msg.state-grounded {
+  border-left: 3px solid var(--trust-approved);
+}
+
+.chat-msg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  color: var(--ink-2);
+}
+
+.chat-msg-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- citations ---------------------------------------------------------- */
+
+/* A block of citations under an answer, an argument, or a report block. The
+ * left rule and the muted ground are what mark a passage as quoted source
+ * rather than as PRISM's own assertion. */
+.citations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line-2);
+}
+
+/* ---- debate stream ------------------------------------------------------ */
+
+.stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 320px;
+  padding: var(--space-2) 0;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.stream-row {
+  display: grid;
+  grid-template-columns: 88px 116px 1fr;
+  gap: var(--space-2);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.stream-row:nth-child(odd) {
+  background: var(--surface-inset);
+}
+
+.stream-type {
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  padding-top: 1px;
+}
+
+@media (max-width: 700px) {
+  .stream-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+/* ---- council chamber ---------------------------------------------------- */
+
+.round {
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--line-1);
+}
+
+.round:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.round-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/* Each persona is colour-coded. The colour is not decoration: a reader
+ * scanning a Council needs to see at a glance which of the three voices is
+ * making a given point. */
+.argument {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-1);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--surface-0);
+}
+
+.argument + .argument {
+  margin-top: var(--space-3);
+}
+
+.argument.persona-hawk {
+  border-left-color: var(--trust-approved);
+}
+
+.argument.persona-dove {
+  border-left-color: var(--trust-verified);
+}
+
+.argument.persona-skeptic {
+  border-left-color: var(--actor-llm);
+}
+
+.argument-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.argument-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- trace tree --------------------------------------------------------- */
+
+/* A run's steps as a collapsible tree. Indentation is carried by padding on a
+ * wrapper row rather than by nesting margins, so a deep run cannot accumulate
+ * collapsing whitespace and shift the whole tree. */
+.tree {
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px var(--space-3);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.tree-row:hover {
+  background: var(--surface-inset);
+}
+
+/* Six levels is enough for the deepest trace the pipeline produces; deeper
+ * nesting clamps rather than pushing text off screen. */
+.tree-row.depth-0 { padding-left: var(--space-3); }
+.tree-row.depth-1 { padding-left: var(--space-5); }
+.tree-row.depth-2 { padding-left: var(--space-6); }
+.tree-row.depth-3 { padding-left: calc(var(--space-6) + 14px); }
+.tree-row.depth-4 { padding-left: calc(var(--space-6) + 28px); }
+.tree-row.depth-5 { padding-left: calc(var(--space-6) + 42px); }
+.tree-row.depth-6 { padding-left: calc(var(--space-6) + 56px); }
+
+.tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-event {
+  color: var(--ink-2);
+}
+
+.tree-detail {
+  padding-top: 4px;
+  padding-bottom: 6px;
+  background: var(--surface-inset);
+  border-bottom: 1px solid var(--line-1);
+  overflow-wrap: anywhere;
+}
+
+/* ---- x-ray -------------------------------------------------------------- */
+
+.xray {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.xray > * + * {
+  border-top: 1px solid var(--line-1);
+  padding-top: var(--space-3);
+}
+
+/* ---- fatal error -------------------------------------------------------- */
+
+.fatal {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--space-5);
+  background: var(--surface-1);
+}
+
+.fatal-card {
+  width: 100%;
+  max-width: 560px;
+  padding: var(--space-6);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-lg);
+  background: var(--surface-0);
+  box-shadow: var(--shadow-lg);
+}
+
+.fatal-card h1 {
+  margin-bottom: var(--space-2);
+  color: var(--danger);
+}
+
+.fatal-detail {
+  max-height: 220px;
+  margin: var(--space-4) 0;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---- print -------------------------------------------------------------- */
+
+/* A synthesis report is the artefact most likely to leave the application, so
+ * it has to survive printing. Navigation, controls, and buttons are dropped
+ * because a printed button is a dead control on paper. */
+@media print {
+  .sidebar,
+  .page-header .btn,
+  .btn-row,
+  .spinner {
+    display: none !important;
+  }
+
+  .app-shell {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  .main {
+    overflow: visible;
+    padding: 0;
+  }
+
+  .card {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+
+  a[href]::after {
+    content: ' (' attr(href) ')';
+    font-size: 11px;
+    color: var(--ink-2);
+  }
+}

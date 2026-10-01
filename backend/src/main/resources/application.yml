@@ -1,0 +1,188 @@
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-stacktrace: never
+    include-message: never
+  shutdown: graceful
+
+spring:
+  application:
+    name: prism-backend
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/prism?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8}
+    username: ${DB_USERNAME:prism}
+    password: ${DB_PASSWORD:prism}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:4}
+      connection-timeout: 20000
+      # Never hold a pooled connection across a slow external LLM call.
+      max-lifetime: 900000
+
+  jpa:
+    # Schema is owned by Flyway. Hibernate must never create or mutate it.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_SIZE:20MB}
+      max-request-size: ${UPLOAD_MAX_SIZE:20MB}
+
+  mvc:
+    async:
+      # SSE emitters for debate streaming are long-lived; keep request timeout generous.
+      request-timeout: ${SSE_REQUEST_TIMEOUT_MS:1800000}
+
+  cache:
+    type: none
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server.tomcat:
+  max-swallow-size: -1
+
+prism:
+  security:
+    # Must be overridden in every real deployment. Fails fast on boot if placeholder.
+    jwt-secret: ${JWT_SECRET:}
+    jwt-issuer: ${JWT_ISSUER:prism}
+    access-token-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:60}
+    # bcrypt cost
+    bcrypt-cost: ${BCRYPT_COST:12}
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    # admin bootstrap performed on startup when DB has no users
+    bootstrap-admin-username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
+    bootstrap-admin-email: ${BOOTSTRAP_ADMIN_EMAIL:admin@prism.local}
+    bootstrap-admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:ChangeMe!123}
+    rate-limit:
+      auth-per-minute: ${RATE_LIMIT_AUTH_PER_MINUTE:10}
+      llm-per-minute: ${RATE_LIMIT_LLM_PER_MINUTE:30}
+  llm:
+    # provider: openai | fake
+    provider: ${LLM_PROVIDER:openai}
+    base-url: ${LLM_BASE_URL:http://localhost:11434/v1}
+    api-key: ${LLM_API_KEY:}
+    connect-timeout-seconds: ${LLM_CONNECT_TIMEOUT_SECONDS:10}
+    timeout-seconds: ${LLM_TIMEOUT_SECONDS:120}
+    temperature: ${LLM_TEMPERATURE:0.0}
+    max-tokens: ${LLM_MAX_TOKENS:2048}
+    extract-model: ${LLM_EXTRACT_MODEL:qwen2.5:7b}
+    judge-model: ${LLM_JUDGE_MODEL:qwen2.5:7b}
+    debate-model: ${LLM_DEBATE_MODEL:qwen2.5:7b}
+    synthesis-model: ${LLM_SYNTHESIS_MODEL:qwen2.5:7b}
+    chat-model: ${LLM_CHAT_MODEL:qwen2.5:7b}
+    max-retries: ${LLM_MAX_RETRIES:3}
+    retry-backoff-millis: ${LLM_RETRY_BACKOFF_MS:1000}
+  extraction:
+    max-triples-per-chunk: ${EXTRACT_MAX_TRIPLES_PER_CHUNK:12}
+    max-claims-per-chunk: ${EXTRACT_MAX_CLAIMS_PER_CHUNK:8}
+    max-sentence-length: ${EXTRACT_MAX_SENTENCE_LENGTH:600}
+  chunking:
+    target-tokens: ${CHUNK_TARGET_TOKENS:300}
+    overlap-tokens: ${CHUNK_OVERLAP_TOKENS:50}
+    # chars-per-token approximation used for the deterministic estimator
+    chars-per-token: ${CHUNK_CHARS_PER_TOKEN:4}
+  retrieval:
+    top-k: ${RETRIEVAL_TOP_K:5}
+    min-score: ${RETRIEVAL_MIN_SCORE:0.0}
+  rules:
+    penalty-per-weasel: ${RULE_PENALTY_PER_WEASEL:0.04}
+    penalty-per-absolute: ${RULE_PENALTY_PER_ABSOLUTE:0.06}
+    max-penalty: ${RULE_MAX_PENALTY:0.4}
+    version: ${RULE_VERSION:RULE_V1}
+  graph:
+    pagerank-damping: ${PAGERANK_DAMPING:0.85}
+    pagerank-iterations: ${PAGERANK_ITERATIONS:50}
+    pagerank-tolerance: ${PAGERANK_TOLERANCE:1.0e-6}
+    cache-ttl-seconds: ${GRAPH_CACHE_TTL_SECONDS:60}
+  debate:
+    max-rounds: ${DEBATE_MAX_ROUNDS:3}
+    persona-timeout-seconds: ${DEBATE_PERSONA_TIMEOUT_SECONDS:180}
+  trace:
+    retention-days: ${TRACE_RETENTION_DAYS:30}
+    # FULL captures prompt/response payloads; METADATA captures identifiers only.
+    mode: ${TRACE_MODE:FULL}
+  chat:
+    max-retrieval-chunks: ${CHAT_MAX_RETRIEVAL_CHUNKS:8}
+  async:
+    pipeline-core-pool: ${PIPELINE_CORE_POOL:2}
+    pipeline-max-pool: ${PIPELINE_MAX_POOL:8}
+    pipeline-queue-capacity: ${PIPELINE_QUEUE_CAPACITY:500}
+    llm-core-pool: ${LLM_CORE_POOL:8}
+    llm-max-pool: ${LLM_MAX_POOL:24}
+    llm-queue-capacity: ${LLM_QUEUE_CAPACITY:200}
+  recovery:
+    # Startup requeue policy for stale RUNNING jobs.
+    stale-after-minutes: ${RECOVERY_STALE_MINUTES:15}
+    enabled: ${RECOVERY_ENABLED:true}
+  docs:
+    expose-include: ${DOCS_EXPOSE_INCLUDE:FULL}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  level:
+    root: INFO
+    com.prism: ${LOG_LEVEL_PRISM:INFO}
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%X{traceId:-no-trace}] %logger{36} - %msg%n"
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/prism_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+prism:
+  security:
+    jwt-secret: ${JWT_SECRET:prism-test-secret-value-that-is-at-least-32-bytes-long!!}
+    rate-limit:
+      auth-per-minute: 10000
+      llm-per-minute: 10000
+  llm:
+    provider: fake

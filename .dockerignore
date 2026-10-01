@@ -1,0 +1,39 @@
+# The frontend image builds from the repository root, so without this the build
+# context would carry the entire backend, every node_modules tree, and the local
+# OpenAPI dump on every single build.
+#
+# Everything excluded here is either rebuilt inside the image, regenerated, or a
+# local artefact that has no business in an image layer.
+
+# Built output
+frontend/dist/
+frontend/node_modules/
+backend/target/
+
+# Version control and editor state
+.git/
+.gitignore
+.vscode/
+.idea/
+*.iml
+
+# Local configuration and secrets. .env is excluded deliberately: it holds
+# JWT_SECRET, and a build context is one of the places a secret can leak from.
+.env
+.env.*
+!.env.example
+
+# Local artefacts
+*.log
+logs/
+docs/openapi.json
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Documentation and demo material. The demo corpus is deliberately NOT excluded:
+# seeding it from a container is a legitimate use, and the seeder reads it from
+# the host, but it is small enough not to matter either way.
+docs/
+README.md
