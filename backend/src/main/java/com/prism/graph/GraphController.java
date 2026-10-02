@@ -58,41 +58,20 @@ public class GraphController {
     @Operation(summary = "PageRank over the trusted graph",
             description = "A structural centrality metric computed by deterministic Java. It is NOT a "
                     + "truth score, a confidence value, or a measure of reliability.")
-    public List<Map<String, Object>> pagerank(@PathVariable Long corpusId,
-                                              @RequestParam(defaultValue = "ALL_APPROVED") String scope,
-                                              @RequestParam(defaultValue = "50") int limit) {
+    public List<GraphService.PageRankRow> pagerank(@PathVariable Long corpusId,
+                                                   @RequestParam(defaultValue = "ALL_APPROVED") String scope,
+                                                   @RequestParam(defaultValue = "50") int limit) {
         Long userId = access.requireCurrentUserId();
-        List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        int position = 1;
-        for (var entry : graph.pagerank(userId, corpusId, scopeOf(scope))) {
-            if (position > Math.max(1, limit)) {
-                break;
-            }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("rank", position++);
-            row.put("entityId", entry.getKey());
-            row.put("pagerank", entry.getValue());
-            rows.add(row);
-        }
-        return rows;
+        return graph.pagerankView(userId, corpusId, scopeOf(scope), limit);
     }
 
     @GetMapping("/{corpusId}/communities")
     @Operation(summary = "Deterministic label-propagation communities over the trusted graph",
             description = "Ties are broken by smallest entity id and nodes are visited in ascending id "
                     + "order, so the same graph always produces the same communities.")
-    public List<Map<String, Object>> communities(@PathVariable Long corpusId,
-                                                 @RequestParam(defaultValue = "ALL_APPROVED") String scope) {
+    public List<GraphService.CommunityRow> communities(@PathVariable Long corpusId,
+                                                       @RequestParam(defaultValue = "ALL_APPROVED") String scope) {
         Long userId = access.requireCurrentUserId();
-        List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        graph.communitiesFor(userId, corpusId, scopeOf(scope))
-                .forEach((communityId, members) -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("communityId", communityId);
-                    row.put("size", members.size());
-                    row.put("entityIds", members);
-                    rows.add(row);
-                });
-        return rows;
+        return graph.communitiesView(userId, corpusId, scopeOf(scope));
     }
 }

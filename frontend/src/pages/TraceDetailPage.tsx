@@ -47,19 +47,26 @@ export function TraceDetailPage() {
   const xray = useAsync(() => traceApi.xray(runId), [runId])
 
   const roots = useMemo(() => {
-    const steps = run.data?.steps ?? []
-    return steps.filter((step) => step.parentStepId == null)
+    const allSteps = run.data?.steps ?? []
+    return allSteps.filter((step) => step.parentStepId == null)
   }, [run.data])
 
   if (run.error != null) return <ErrorState error={run.error} />
   if (run.loading || !run.data) return <Loading label="Loading trace" />
 
-  const r = run.data
+  // The run is nested under `run`, not flattened onto the response. Reading
+  // `id`/`status`/`operationKey` off the top level yields undefined, which is
+  // how this page used to render "Trace #undefined".
+  //
+  // Destructured into locals rather than referenced as `run.data.x`: TypeScript
+  // does not carry a narrowing of a property access into a closure, so
+  // `run.data.steps` inside `childrenOf` below would be `possibly null`.
+  const { run: r, steps } = run.data
   const byId = new Map<number, TraceStepView>()
-  for (const step of r.steps) byId.set(step.id, step)
+  for (const step of steps) byId.set(step.id, step)
 
   const childrenOf = (id: number): TraceStepView[] =>
-    r.steps.filter((step) => step.parentStepId === id)
+    steps.filter((step) => step.parentStepId === id)
 
   return (
     <>
@@ -81,7 +88,7 @@ export function TraceDetailPage() {
       {r.errorMessage && <Alert kind="error">{r.errorMessage}</Alert>}
 
       <div className="grid cols-4" style={{ margin: 'var(--space-4) 0' }}>
-        <Stat label="Steps" value={r.steps.length} />
+        <Stat label="Steps" value={steps.length} />
         <Stat label="Duration" value={formatDuration(r.durationMs)} />
         <Stat
           label="Model steps"

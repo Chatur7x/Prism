@@ -104,12 +104,83 @@ public class GraphCache {
         return pageRank.ranked(buildGraph(corpusId, scope, verifiedIds));
     }
 
+    /**
+     * PageRank as presentable rows: score plus the entity's name and degrees.
+     *
+     * <p>Computed here because the {@link KnowledgeGraph} is in scope, and it is
+     * the only place the name and degree lookup is not a second round of
+     * queries. The name is a label a reader needs; an audit tool that shows bare
+     * entity ids in a centrality table is not presenting evidence.
+     *
+     * <p>Ordering is explicit rather than inherited from
+     * {@link PageRank#ranked}, and ties break by entity id ascending, so the same
+     * graph always produces the same rows in the same order.
+     */
+    @Transactional(readOnly = true)
+    @Cacheable(value = "pagerank", key = "#corpusId + ':' + #scope.name() + ':' + #verifiedIds.hashCode()")
+    public List<GraphService.PageRankRow> pagerankView(Long corpusId, GraphService.Scope scope,
+                                                        Set<Long> verifiedIds) {
+        KnowledgeGraph graph = buildGraph(corpusId, scope, verifiedIds);
+        Map<Long, Double> scores = pageRank.compute(graph);
+
+        // Collected in id order first so the sort below is total: PageRank can
+        // return equal scores, and a comparator that only compares the score
+        // would leave the relative order of equal-scored entities to whatever the
+        // sort implementation happens to do.
+        List<GraphService.PageRankRow> rows = new ArrayList<>();
+        for (Long id : graph.sortedNodes()) {
+            Double score = scores.get(id);
+            rows.add(new GraphService.PageRankRow(0, id, graph.nameOf(id),
+                    score == null ? 0.0 : score, graph.inDegree(id), graph.outDegree(id)));
+        }
+        rows.sort((a, b) -> {
+            int byScore = Double.compare(b.pagerank(), a.pagerank());
+            return byScore != 0 ? byScore : Long.compare(a.entityId(), b.entityId());
+        });
+
+        // Rank is positional, so it can only be assigned once the order is final.
+        List<GraphService.PageRankRow> ranked = new ArrayList<>(rows.size());
+        int position = 1;
+        for (GraphService.PageRankRow r : rows) {
+            ranked.add(new GraphService.PageRankRow(position++, r.entityId(), r.displayName(),
+                    r.pagerank(), r.inDegree(), r.outDegree()));
+        }
+        return ranked;
+    }
+
     /** Community assignment. Call only after authorization. */
     @Transactional(readOnly = true)
     @Cacheable(value = "communities", key = "#corpusId + ':' + #scope.name() + ':' + #verifiedIds.hashCode()")
     public Map<Integer, List<Long>> communitiesFor(Long corpusId, GraphService.Scope scope,
                                                     Set<Long> verifiedIds) {
         return communities.detect(buildGraph(corpusId, scope, verifiedIds));
+    }
+
+    /**
+     * Communities as presentable rows: member ids plus their display names.
+     *
+     * <p>Ordered by community id so the list is stable between calls. Names come
+     * from the graph, so no additional query is needed.
+     */
+    @Transactional(readOnly = true)
+    @Cacheable(value = "communities", key = "#corpusId + ':' + #scope.name() + ':' + #verifiedIds.hashCode()")
+    public List<GraphService.CommunityRow> communitiesView(Long corpusId, GraphService.Scope scope,
+                                                            Set<Long> verifiedIds) {
+        KnowledgeGraph graph = buildGraph(corpusId, scope, verifiedIds);
+        Map<Integer, List<Long>> assignment = communities.detect(graph);
+        List<Integer> ids = new ArrayList<>(assignment.keySet());
+        java.util.Collections.sort(ids);
+        List<GraphService.CommunityRow> rows = new ArrayList<>(ids.size());
+        for (Integer communityId : ids) {
+            List<Long> memberIds = assignment.getOrDefault(communityId, List.of());
+            List<String> names = new ArrayList<>(memberIds.size());
+            for (Long id : memberIds) {
+                names.add(graph.nameOf(id));
+            }
+            rows.add(new GraphService.CommunityRow(communityId, memberIds.size(),
+                    List.copyOf(memberIds), names));
+        }
+        return rows;
     }
 
     /**

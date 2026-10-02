@@ -11,9 +11,23 @@
  * this file in the same commit. A mismatch here is a real defect, not a
  * cosmetic one.
  *
- * <p>Optional fields are modelled honestly with `| null` wherever the backend
- * can genuinely send null (an undecided verdict, a citation with no chunk), so
- * the compiler forces each call site to decide what to display.
+ * <p><b>Nullable means ABSENT, not null.</b> The backend serialises with
+ * `JsonInclude.Include.NON_NULL`, so a field whose value is null is left out of
+ * the response entirely -- it is never sent as `null`. Every nullable backend
+ * field is therefore declared optional (`foo?: T`), not `foo: T | null`.
+ *
+ * <p>This was previously documented the other way round and typed the other way
+ * round for 103 fields, which was a defect rather than a style preference: a
+ * field typed `T | null` but absent at runtime passes `strict` TypeScript, so
+ * any call site using it as definitely-present type-checked and then read
+ * `undefined` in the browser.
+ * `scripts/contract-check.ps1` compares live JSON against these interfaces and
+ * is what surfaced it.
+ *
+ * <p>Making the backend emit explicit nulls would have been the other way to
+ * make the old comment true, and was rejected deliberately: the same
+ * ObjectMapper builds LLM request bodies, so adding nulls to a prompt changes
+ * what a model sees.
  */
 
 // ---- auth -----------------------------------------------------------------
@@ -43,7 +57,7 @@ export type CorpusStatus = 'ACTIVE' | 'ARCHIVED'
 export interface Corpus {
   id: number
   name: string
-  description: string | null
+  description?: string
   ownerId: number
   ownerUsername: string
   status: CorpusStatus
@@ -84,8 +98,8 @@ export interface DocumentRow {
   corpusId: number
   title: string
   status: DocumentStatus
-  originalFilename: string | null
-  mimeType: string | null
+  originalFilename?: string
+  mimeType?: string
   contentLength: number
   createdAt: string
   updatedAt: string
@@ -95,8 +109,6 @@ export interface DocumentContent {
   id: number
   title: string
   contentText: string
-  contentLength: number
-  originalFilename: string | null
 }
 
 export interface DocumentChunk {
@@ -108,28 +120,35 @@ export interface DocumentChunk {
   content: string
 }
 
+/** Mirrors the backend ExtractionStatus enum, reported as `runStatus`. */
+export type ExtractionRunStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+
 export interface DocumentProgress {
   documentId: number
   status: DocumentStatus
-  corpusId: number
-  extractionRunId: number | null
+  /** Status of the extraction run, which can differ from the document's. */
+  runStatus: ExtractionRunStatus
+  extractionRunId?: number
   totalChunks: number
   processedChunks: number
   chunkCount: number
   triplesFound: number
   claimsFound: number
   quarantinedCount: number
-  lastError: string | null
+  /** Which model produced this run. Absent before the run starts. */
+  model?: string
+  /** Set when the run failed. Absent when it succeeded -- see the NON_NULL note. */
+  lastError?: string
 }
 
 export interface QuarantineRow {
   id: number
   documentId: number
-  chunkId: number | null
-  chunkIndex: number | null
+  chunkId?: number
+  chunkIndex?: number
   errorType: string
   validationMessage: string
-  rawResponse: string | null
+  rawResponse?: string
   attempt: number
   createdAt: string
 }
@@ -156,9 +175,9 @@ export interface Triple {
   sourceChunkId: number
   sourceDocumentTitle: string
   status: ProposalStatus
-  decidedBy: string | null
-  decidedAt: string | null
-  decisionNote: string | null
+  decidedBy?: string
+  decidedAt?: string
+  decisionNote?: string
   evidenceChunkCount: number
   createdAt: string
 }
@@ -169,14 +188,14 @@ export interface Claim {
   subject: string
   claimText: string
   polarity: ClaimPolarity
-  predicate: string | null
-  objectText: string | null
+  predicate?: string
+  objectText?: string
   sourceSentence: string
   sourceChunkId: number
   sourceDocumentTitle: string
   status: ClaimStatus
-  decidedBy: string | null
-  decidedAt: string | null
+  decidedBy?: string
+  decidedAt?: string
   createdAt: string
 }
 
@@ -188,22 +207,26 @@ export interface Entity {
   type: string
   resolutionState: ResolutionState
   supportCount: number
-  firstSeenChunkId: number | null
+  firstSeenChunkId?: number
 }
 
 export interface TriplePage {
+  page: number
   total: number
   size: number
   content: Triple[]
 }
 
 export interface ClaimPage {
+  page: number
   total: number
   size: number
   content: Claim[]
 }
 
 export interface ApprovalQueue {
+  page: number
+  size: number
   triples: Triple[]
   claims: Claim[]
   pendingTripleCount: number
@@ -228,7 +251,7 @@ export interface EvidencePassage {
   documentTitle: string
   chunkText: string
   retrievalRank: number
-  retrievalScore: number | null
+  retrievalScore?: number
 }
 
 /**
@@ -246,28 +269,29 @@ export interface Verdict {
   subject: string
   verdictType: VerdictType
   machineVerdictType: VerdictType
-  humanVerdictType: VerdictType | null
+  humanVerdictType?: VerdictType
   adjudicationState: AdjudicationState
-  adjudicator: string | null
-  adjudicatedAt: string | null
-  adjudicationNote: string | null
+  adjudicator?: string
+  adjudicatedAt?: string
+  adjudicationNote?: string
   overridden: boolean
-  llmScore: number | null
-  rulePenalty: number | null
-  fusedScore: number | null
+  llmScore?: number
+  rulePenalty?: number
+  fusedScore?: number
   evidenceStatus: EvidenceStatus
-  ruleVersion: string | null
-  verdictReason: string | null
-  llmReasoning: string | null
-  model: string | null
-  promptVersion: string | null
-  retrievalQuery: string | null
-  traceRunId: number | null
+  ruleVersion?: string
+  verdictReason?: string
+  llmReasoning?: string
+  model?: string
+  promptVersion?: string
+  retrievalQuery?: string
+  traceRunId?: number
   createdAt: string
   evidence: EvidencePassage[]
 }
 
 export interface VerdictPage {
+  page: number
   total: number
   size: number
   content: Verdict[]
@@ -281,16 +305,16 @@ export interface VerifyAllResult {
 }
 
 export interface VerificationOutcome {
-  verdictId: number | null
+  verdictId?: number
   claimId: number
-  verdictType: VerdictType | null
-  llmScore: number | null
-  rulePenalty: number | null
-  fusedScore: number | null
-  evidenceStatus: EvidenceStatus | null
+  verdictType?: VerdictType
+  llmScore?: number
+  rulePenalty?: number
+  fusedScore?: number
+  evidenceStatus?: EvidenceStatus
   evidenceCount: number
   succeeded: boolean
-  error: string | null
+  error?: string
 }
 
 // ---- graph ----------------------------------------------------------------
@@ -330,17 +354,21 @@ export interface GraphView {
 }
 
 export interface PageRankRow {
+  /** 1-based position in the ranking. */
+  rank: number
   entityId: number
   displayName: string
   pagerank: number
   inDegree: number
   outDegree: number
-  community: number
 }
 
 export interface CommunityRow {
   communityId: number
   size: number
+  /** Machine ids, stable across renames. */
+  entityIds: number[]
+  /** Display names, for reading. */
   members: string[]
 }
 
@@ -362,16 +390,17 @@ export interface Contradiction {
   ruleVersion: string
   explanation: string
   status: ContradictionStatus
-  leftTripleId: number | null
-  rightTripleId: number | null
-  leftClaimId: number | null
-  rightClaimId: number | null
-  debateId: number | null
+  leftTripleId?: number
+  rightTripleId?: number
+  leftClaimId?: number
+  rightClaimId?: number
+  debateId?: number
   createdAt: string
   updatedAt: string
 }
 
 export interface ContradictionPage {
+  page: number
   total: number
   size: number
   content: Contradiction[]
@@ -389,7 +418,7 @@ export interface ScanResult {
   created: number
   unchanged: number
   findings: number
-  traceRunId: number | null
+  traceRunId?: number
 }
 
 // ---- debate ---------------------------------------------------------------
@@ -408,11 +437,11 @@ export type CitationKind = 'CHUNK' | 'TRIPLE' | 'CLAIM' | 'MACHINE_FACT'
 export interface ArgumentCitation {
   id: number
   kind: CitationKind
-  chunkId: number | null
-  tripleId: number | null
-  claimId: number | null
-  machineFactId: string | null
-  excerpt: string | null
+  chunkId?: number
+  tripleId?: number
+  claimId?: number
+  machineFactId?: string
+  excerpt?: string
 }
 
 export interface Argument {
@@ -421,15 +450,15 @@ export interface Argument {
   persona: Persona
   argumentText: string
   stance: string
-  model: string | null
-  promptVersion: string | null
+  model?: string
+  promptVersion?: string
   failed: boolean
-  failureReason: string | null
-  durationMs: number | null
+  failureReason?: string
+  durationMs?: number
   createdAt: string
   /** Latest chair weight only. The full sequence is append-only server-side. */
-  chairWeight: number | null
-  weightedBy: string | null
+  chairWeight?: number
+  weightedBy?: string
   citations: ArgumentCitation[]
 }
 
@@ -437,7 +466,7 @@ export interface DebateRound {
   id: number
   roundNumber: number
   startedAt: string
-  completedAt: string | null
+  completedAt?: string
   argumentsCompleted: number
   argumentsFailed: number
   arguments: Argument[]
@@ -454,9 +483,9 @@ export interface Debate {
   topic: string
   chair: string
   createdAt: string
-  startedAt: string | null
-  finishedAt: string | null
-  lastError: string | null
+  startedAt?: string
+  finishedAt?: string
+  lastError?: string
   rounds: DebateRound[]
 }
 
@@ -497,7 +526,7 @@ export interface WeightResult {
   argumentId: number
   weight: number
   verifier: string
-  note: string | null
+  note?: string
   createdAt: string
 }
 
@@ -527,10 +556,10 @@ export type BlockType = 'EXECUTIVE_SUMMARY' | 'AGREEMENT' | 'DISAGREEMENT' | 'UN
 
 export interface ReportBlockCitation {
   kind: CitationKind | string
-  chunkId: number | null
-  tripleId: number | null
-  claimId: number | null
-  excerpt: string | null
+  chunkId?: number
+  tripleId?: number
+  claimId?: number
+  excerpt?: string
 }
 
 export interface ReportBlock {
@@ -538,7 +567,7 @@ export interface ReportBlock {
   blockType: BlockType
   heading: string
   body: string
-  weight: number | null
+  weight?: number
   citations: ReportBlockCitation[]
 }
 
@@ -547,9 +576,9 @@ export interface SynthesisReport {
   debateId: number
   corpusId: number
   conclusion: string
-  confidence: number | null
-  model: string | null
-  promptVersion: string | null
+  confidence?: number
+  model?: string
+  promptVersion?: string
   createdAt: string
   blocks: ReportBlock[]
 }
@@ -576,11 +605,11 @@ export interface ChatSessionDetail {
 
 export interface ChatCitation {
   kind: string
-  chunkId: number | null
-  documentId: number | null
-  documentTitle: string | null
-  chunkIndex: number | null
-  excerpt: string | null
+  chunkId?: number
+  documentId?: number
+  documentTitle?: string
+  chunkIndex?: number
+  excerpt?: string
 }
 
 export interface ChatMessage {
@@ -590,10 +619,10 @@ export interface ChatMessage {
   citations: ChatCitation[]
   grounded: boolean
   insufficientEvidence: boolean
-  model: string | null
-  latencyMs: number | null
-  retrievalCount: number | null
-  traceRunId: number | null
+  model?: string
+  latencyMs?: number
+  retrievalCount?: number
+  traceRunId?: number
   createdAt: string
 }
 
@@ -604,7 +633,7 @@ export interface ChatAnswer {
   grounded: boolean
   insufficientEvidence: boolean
   retrievalCount: number
-  model: string | null
+  model?: string
 }
 
 // ---- glass box ------------------------------------------------------------
@@ -613,23 +642,23 @@ export type ActorType = 'ENGINE' | 'LLM' | 'HUMAN'
 
 export interface TraceStepView {
   id: number
-  parentStepId: number | null
+  parentStepId?: number
   seq: number
   actorType: ActorType
   eventType: string
   name: string
   status: string
-  inputSummary: string | null
+  inputSummary?: string
   /** Comma-separated reference ids; not a structured array. */
-  inputReferenceIds: string | null
-  outputSummary: string | null
-  outputReferenceIds: string | null
-  ruleVersion: string | null
-  promptVersion: string | null
-  model: string | null
-  durationMs: number | null
-  errorMessage: string | null
-  attempt: number | null
+  inputReferenceIds?: string
+  outputSummary?: string
+  outputReferenceIds?: string
+  ruleVersion?: string
+  promptVersion?: string
+  model?: string
+  durationMs?: number
+  errorMessage?: string
+  attempt?: number
   createdAt: string
   children: number[]
 }
@@ -640,22 +669,32 @@ export interface TraceRunSummary {
   operationType: string
   status: string
   operationKey: string
-  actorSummary: string | null
+  actorSummary?: string
   startedAt: string
-  finishedAt: string | null
-  durationMs: number | null
-  errorMessage: string | null
+  finishedAt?: string
+  durationMs?: number
+  errorMessage?: string
   stepCount: number
 }
 
 export interface TraceRunPage {
+  page: number
   total: number
   size: number
   content: TraceRunSummary[]
 }
 
-export interface TraceRunDetail extends TraceRunSummary {
-  metadata: Record<string, unknown> | null
+/**
+ * A trace run with its full step DAG.
+ *
+ * <p>The run is NESTED under `run`, not flattened. This type used to extend
+ * `TraceRunSummary`, which declared the run's fields at the top level — so the
+ * trace page read `data.id`, `data.status` and `data.operationKey` from an
+ * object where they do not exist and rendered "Trace #undefined" with a blank
+ * status. Found by comparing live JSON against this file.
+ */
+export interface TraceRunDetail {
+  run: TraceRunSummary
   steps: TraceStepView[]
 }
 
@@ -664,18 +703,25 @@ export interface XRayNode {
   name: string
   eventType: string
   status: string
-  inputSummary: string | null
-  outputSummary: string | null
-  model: string | null
-  ruleVersion: string | null
-  durationMs: number | null
+  inputSummary?: string
+  outputSummary?: string
+  model?: string
+  ruleVersion?: string
+  durationMs?: number
 }
 
 export interface XRayView {
   runId: number
+  operationType: string
+  status: string
+  startedAt: string
+  finishedAt?: string
+  durationMs?: number
   engine: XRayNode[]
   llm: XRayNode[]
   human: XRayNode[]
+  /** Total steps across all three actor groups. */
+  totalSteps: number
 }
 
 // ---- admin ----------------------------------------------------------------
@@ -696,8 +742,8 @@ export interface BackgroundJobView {
   status: string
   attemptCount: number
   maxAttempts: number
-  lastError: string | null
-  heartbeatAt: string | null
+  lastError?: string
+  heartbeatAt?: string
   createdAt: string
   updatedAt: string
 }
