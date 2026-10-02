@@ -86,18 +86,28 @@ public class ExtractionResultParser {
                     "no JSON object found in the response body");
         }
 
+        // Checked before the Jackson read, not after.
+        //
+        // The mapper is configured with FAIL_ON_UNKNOWN_PROPERTIES precisely so a
+        // model that invents keys cannot smuggle them into a trusted path. But that
+        // means readValue throws UnrecognizedPropertyException before the explicit
+        // root-key check below can run, so a perfectly well-formed response with one
+        // extra key was reported as MALFORMED_JSON. Still rejected, so nothing unsafe
+        // got through, but the reason sent an operator hunting a JSON syntax error
+        // that did not exist while the real problem was a contract violation. Doing
+        // the cheap structural check first makes the diagnosis match the defect.
+        Set<String> unexpected = findUnexpectedRootKeys(candidate);
+        if (!unexpected.isEmpty()) {
+            return ParseOutcome.fail(QuarantineReason.SCHEMA_VALIDATION_FAILED,
+                    "response contains keys outside the schema: " + unexpected);
+        }
+
         ExtractionResultDto dto;
         try {
             dto = objectMapper.readValue(candidate, ExtractionResultDto.class);
         } catch (JsonProcessingException ex) {
             return ParseOutcome.fail(QuarantineReason.MALFORMED_JSON,
                     "JSON parse error: " + ex.getOriginalMessage());
-        }
-
-        Set<String> unexpected = findUnexpectedRootKeys(candidate);
-        if (!unexpected.isEmpty()) {
-            return ParseOutcome.fail(QuarantineReason.SCHEMA_VALIDATION_FAILED,
-                    "response contains keys outside the schema: " + unexpected);
         }
 
         List<String> beanErrors = validateBean(dto);
