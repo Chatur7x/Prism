@@ -102,8 +102,13 @@ class MigrationIntegrationTest {
     @Test
     @DisplayName("the required retrieval and workflow indexes exist")
     void requiredIndexesExist() {
+        // CONCAT because the assertion below matches on "table|index". This query
+        // previously selected two columns and asked JdbcTemplate for a single
+        // String, which throws IncorrectResultSetColumnCount -- so this test had
+        // never passed, and never failed either, because it always skipped.
         List<String> indexedColumns = jdbc.queryForList("""
-                SELECT DISTINCT table_name, index_name FROM information_schema.statistics
+                SELECT DISTINCT CONCAT(table_name, '|', index_name)
+                FROM information_schema.statistics
                 WHERE table_schema = DATABASE()
                 """, String.class);
 
@@ -118,8 +123,34 @@ class MigrationIntegrationTest {
     @Test
     @DisplayName("Hibernate's entity mapping validates against the migrated schema")
     void hibernateMappingMatchesSchema() {
-        // The context only starts when ddl-auto=validate passes, so reaching
-        // this assertion means every mapped column exists with a compatible type.
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
+        // The real assertion is implicit and happens before this method runs: the
+        // Spring context only starts once ddl-auto=validate has compared every
+        // entity mapping to the migrated schema. Reaching this line therefore
+        // already means the mapping matches.
+        //
+        // What is checked here is that the mapped tables are genuinely usable,
+        // which a passing validate alone does not prove -- a table can exist with
+        // the right column names and still be unreadable.
+        //
+        // This deliberately does NOT assert an empty users table. It used to, and
+        // that assertion was simply wrong: AdminBootstrap creates the first admin
+        // on startup, so the count is 1 before anything else runs. The failure
+        // went unnoticed because the test had never executed.
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class))
+                .as("the bootstrap admin is created on startup")
+                .isEqualTo(1);
+
+        // A mapped column is selectable with the type the mapping declares.
+        assertThat(jdbc.queryForList("SELECT id, username, role, enabled FROM users"))
+                .as("the users mapping must be readable against the migrated schema")
+                .hasSize(1);
+
+        // And a table carrying a CHECK constraint is present with it intact.
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM information_schema.table_constraints
+                WHERE table_schema = DATABASE() AND constraint_type = 'CHECK'
+                """, Integer.class))
+                .as("CHECK constraints must survive migration")
+                .isGreaterThanOrEqualTo(30);
     }
 }

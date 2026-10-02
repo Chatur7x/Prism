@@ -22,6 +22,20 @@
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.6.0</springdoc.version>
         <testcontainers.version>1.21.3</testcontainers.version>
+        <!--
+          Docker API version used by Testcontainers.
+
+          1.44 is the highest version Testcontainers 1.21.3's shaded docker-java
+          can express (its RemoteApiVersion enum stops there) and the lowest that
+          Docker 29 accepts. Without it, Docker 29 answers the daemon probe with
+          HTTP 400 and an empty body, docker-java raises BadRequestException, and
+          the migration integration tests skip instead of running.
+
+          Not a workaround for an old library: 1.21.3 is the current release. The
+          incompatibility is that Docker moved its API floor forward, and pinning
+          the negotiated version is the library's own supported configuration.
+        -->
+        <docker.api.version>1.44</docker.api.version>
     </properties>
 
     <dependencies>
@@ -177,6 +191,25 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>-XX:+EnableDynamicAgentLoading</argLine>
+                    <!--
+                      Docker API version for Testcontainers.
+
+                      Testcontainers 1.21.3 shades docker-java, and the shaded
+                      RemoteApiVersion enum stops at VERSION_1_44. Docker 29
+                      speaks API 1.55 and answers a request below its floor with a
+                      400 and an all-empty body, which docker-java surfaces as
+                      BadRequestException during the daemon probe, so every
+                      Testcontainers test silently skipped and the 6 migration
+                      integration tests never ran at all.
+
+                      1.44 is the highest version the library can express and the
+                      lowest Docker 29 accepts, which makes it the one value that
+                      works on both old and new daemons. Overridable with
+                      -Ddocker.api.version=... if a different pairing is needed.
+                    -->
+                    <systemPropertyVariables>
+                        <api.version>${docker.api.version}</api.version>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>
