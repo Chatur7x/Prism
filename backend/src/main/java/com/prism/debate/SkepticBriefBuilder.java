@@ -121,7 +121,7 @@ public class SkepticBriefBuilder {
 
         // ---- 4. PageRank over the approved graph ----
         List<Map.Entry<Long, Double>> ranked = graphService
-                .pagerank(userId, corpusId, GraphService.Scope.ALL_APPROVED, Set.of());
+                .pagerank(userId, corpusId, GraphService.Scope.ALL_APPROVED);
         if (ranked.isEmpty()) {
             brief.addGap("The approved graph has no nodes, so no centrality figures exist.");
         } else {
@@ -139,7 +139,7 @@ public class SkepticBriefBuilder {
 
         // ---- 5. community structure ----
         Map<Integer, List<Long>> communities = graphService
-                .communitiesFor(userId, corpusId, GraphService.Scope.ALL_APPROVED, Set.of());
+                .communitiesFor(userId, corpusId, GraphService.Scope.ALL_APPROVED);
         if (communities.isEmpty()) {
             brief.addGap("No communities could be computed: the approved graph is empty.");
         } else {

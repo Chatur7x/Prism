@@ -1,6 +1,5 @@
 package com.prism.graph;
 
-import com.prism.claims.VerifiedGraphScope;
 import com.prism.corpus.CorpusAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,13 +20,10 @@ import java.util.Set;
 public class GraphController {
 
     private final GraphService graph;
-    private final VerifiedGraphScope verifiedScope;
     private final CorpusAccessService access;
 
-    public GraphController(GraphService graph, VerifiedGraphScope verifiedScope,
-                           CorpusAccessService access) {
+    public GraphController(GraphService graph, CorpusAccessService access) {
         this.graph = graph;
-        this.verifiedScope = verifiedScope;
         this.access = access;
     }
 
@@ -43,10 +39,6 @@ public class GraphController {
         }
     }
 
-    private Set<Long> verifiedIds(Long corpusId) {
-        return verifiedScope.verifiedTripleIds(corpusId);
-    }
-
     @GetMapping("/{corpusId}")
     @Operation(summary = "Nodes and edges of the trusted graph",
             description = "Only APPROVED triples become edges. PENDING and REJECTED proposals are "
@@ -54,7 +46,12 @@ public class GraphController {
     public GraphService.GraphView graph(@PathVariable Long corpusId,
                                        @RequestParam(defaultValue = "ALL_APPROVED") String scope) {
         Long userId = access.requireCurrentUserId();
-        return graph.graphView(userId, corpusId, scopeOf(scope), verifiedIds(corpusId));
+        // The service authorises and resolves the verified-id set itself. This
+        // controller used to resolve the verified ids and pass them in, which ran
+        // that corpus query BEFORE the access check -- so it executed for
+        // corpora the caller could not reach and its result became part of the
+        // cache key.
+        return graph.graphView(userId, corpusId, scopeOf(scope));
     }
 
     @GetMapping("/{corpusId}/pagerank")
@@ -67,7 +64,7 @@ public class GraphController {
         Long userId = access.requireCurrentUserId();
         List<Map<String, Object>> rows = new java.util.ArrayList<>();
         int position = 1;
-        for (var entry : graph.pagerank(userId, corpusId, scopeOf(scope), verifiedIds(corpusId))) {
+        for (var entry : graph.pagerank(userId, corpusId, scopeOf(scope))) {
             if (position > Math.max(1, limit)) {
                 break;
             }
@@ -88,7 +85,7 @@ public class GraphController {
                                                  @RequestParam(defaultValue = "ALL_APPROVED") String scope) {
         Long userId = access.requireCurrentUserId();
         List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        graph.communitiesFor(userId, corpusId, scopeOf(scope), verifiedIds(corpusId))
+        graph.communitiesFor(userId, corpusId, scopeOf(scope))
                 .forEach((communityId, members) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("communityId", communityId);

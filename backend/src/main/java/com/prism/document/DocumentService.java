@@ -180,17 +180,29 @@ public class DocumentService {
         });
     }
 
+    /**
+     * Refuses to delete a document. Always, for everyone.
+     *
+     * <p>Deleting a document would orphan the provenance of every verdict that
+     * cites it, so this endpoint exists to state the refusal rather than to
+     * delete anything.
+     *
+     * <p>There is deliberately no ownership check first. The operation cannot
+     * succeed for the owner either, so an ownership test would only have
+     * changed the status code — a corpus member would have seen "only the corpus
+     * owner may delete this", which reads as though the owner could. One
+     * unconditional refusal with one message is the honest contract.
+     *
+     * <p>{@code get} still runs first, so a document the caller cannot see is
+     * reported as not found rather than as deletable-but-refused, which would
+     * otherwise disclose that the id exists.
+     */
     @Transactional
     public void delete(Long userId, Long documentId) {
-        Document document = get(userId, documentId);
-        // Deleting a document would orphan the provenance of every verdict that
-        // cites it. Refuse rather than silently break the audit chain.
-        if (!document.getCorpus().getOwner().getId().equals(userId)) {
-            throw ApiException.forbidden("only the corpus owner may delete a document");
-        }
+        get(userId, documentId);
         throw new ApiException(com.prism.common.error.ErrorCode.CONFLICT,
-                "documents are not deleted because approved knowledge and verdicts depend on their "
-                        + "provenance. Archive the corpus instead.");
+                "documents are not deleted, by anyone: approved knowledge and the verdicts that "
+                        + "cite them depend on this provenance. Archive the corpus instead.");
     }
 
     private String validateTitle(String title) {
