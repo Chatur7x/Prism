@@ -266,6 +266,33 @@ does not change.
 
 Stated because a system that claims to have none is not telling you the truth.
 
+**`docs/limitations.md` is the complete list** — the offline provider's limits and
+what they make undemonstrable, the eleven-query benchmark, the refresh-token and
+single-instance SSE constraints, which features cannot be shown without a real
+model, and which phases of the hardening plan were not reached. Read it before
+relying on any number in this README.
+
+Three that most often cause the wrong conclusion:
+
+**No real model has been evaluated.** Every pipeline run so far has used the
+offline provider. That proves the pipeline is correct end to end and says nothing
+about extraction quality. Provider support exists; the labelled gold set and
+measurement harness do not.
+
+**The retrieval benchmark is eleven queries.** It is a regression guard, not an
+estimate of retrieval quality — one query moves any metric by roughly nine
+percentage points.
+
+**The `VERIFIED_ONLY` graph scope is always empty offline.** The offline provider
+never returns a `SUPPORTED` verdict, so no triple qualifies. That is correct
+behaviour, not a bug, and it means the feature cannot be demonstrated without a
+real model.
+
+---
+
+<details>
+<summary>Previously listed here in full</summary>
+
 **Six migration integration tests skip without a usable Docker daemon.** They use
 Testcontainers, which cannot negotiate with Docker 29's API version — the probe
 returns `BadRequestException (Status 400)` before any container starts. This is a
@@ -319,3 +346,6 @@ is no separate long-lived refresh token, so nothing survives the access token's
 own expiry except a new sign-in, and there is no server-side revocation list to
 invalidate a token before it expires. Both would need somewhere to store refresh
 token state, which is a schema addition rather than a code change.
+---
+
+</details>

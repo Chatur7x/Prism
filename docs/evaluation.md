@@ -115,83 +115,145 @@ measures how a human's question behaves against a corpus that is written in
 
 ### Result
 
+Measured after query expansion was added. `expanderVersion` is recorded on the
+run, so the figures are attributable to a specific retrieval configuration and not
+only to a corpus.
+
 ```json
 {
+  "runKey": "ec09cd6463d0973357cab3e28b23f0f6900ec36024e993368365528ffd98dd29",
+  "expanderVersion": "EXPAND_V1",
+  "measured": true,
   "totalEvaluations": 11,
   "goldQueries": 11,
   "notRetrieved": 1,
   "recallAt1": 0.6364,
-  "recallAt3": 0.8182,
+  "recallAt3": 0.9091,
   "recallAt5": 0.9091,
-  "meanReciprocalRank": 0.82
+  "meanReciprocalRank": 0.8333
 }
 ```
 
-| Query | Gold | Rank |
-|---|---|---|
-| Who operates the shared services migration programme | 74 | **1** |
-| Who funds joint research in two areas | 20 | **1** |
-| Vantage Materials parent organisation | 18 | **1** |
-| Which organisation owns Vantage Materials | 18 | **1** |
-| Where is the Calder site located | 14 | **1** |
-| Who operates the Corvale site | 14 | **1** |
-| Who does Orion Systems compete with | 9 | **1** |
-| Which organisation does Aster Labs report to | 12 | 2 |
-| Who is the parent organisation of Aster Labs | 12 | 2 |
-| Who does Orion Systems supply | 12 | 5 |
-| Who does Calder collaborate with | 20 | **not retrieved** |
+| Query | Gold | Rank | Category |
+|---|---|---|---|
+| Who operates the shared services migration programme | 74 | **1** | multi-hop |
+| Who funds joint research in two areas | 20 | **1** | unsupported |
+| Vantage Materials parent organisation | 18 | **1** | synonym |
+| Which organisation owns Vantage Materials | 18 | **1** | synonym |
+| Where is the Calder site located | 14 | **1** | exact entity |
+| Who operates the Corvale site | 14 | **1** | exact entity |
+| Who does Orion Systems compete with | 9 | **1** | relation |
+| Which organisation does Aster Labs report to | 12 | 2 | relation |
+| Who is the parent organisation of Aster Labs | 12 | 3 | relation |
+| Who does Calder collaborate with | 20 | 2 | synonym |
+| Who does Orion Systems supply | 12 | **not retrieved** | relation |
 
 Eleven queries is a small set. These numbers indicate behaviour; they do not
 establish it. A real evaluation needs hundreds of queries, and that is listed
 under unfinished work rather than glossed over here.
 
-### The one miss, diagnosed
+The benchmark is idempotent. A run is keyed by the SHA-256 of its canonicalised
+gold set and replaces itself, so running the same set twice returns identical
+metrics — verified. Before that, the summary aggregated every row a corpus had
+ever accumulated, so a second run doubled the rows and moved the numbers without
+retrieval changing at all.
 
-`Who does Calder collaborate with` did not retrieve chunk 20 — which contains
-the sentence `Calder Dynamics collaborates_with Helix Consortium`.
+### Query expansion: before and after
 
-The query says **collaborate**. The corpus says **`collaborates_with`**. Those are
-different tokens, and nothing bridges them: query normalisation strips
-punctuation and content words but does not stem, and there is no synonym
-expansion. The query's other content words — *Calder*, *Helix* — do appear in
-chunk 20, but chunk 20 is a long multi-section memo, so term frequency ranks
-several other Calder or Helix chunks above it.
+`QueryExpander` maps question wording to the token a corpus uses. It is
+deterministic, versioned, and recorded on every result — deliberately not a model,
+because a prompt injected into a document must not be able to steer which
+passages a verdict may cite.
 
-What retrieval did return was chunk 14, the Calder *site register* — which has
-nothing to do with collaboration.
+Both columns measured on the same corpus, the same gold set, at the same moment:
 
-**The interesting part is what the system did next.** The chat response came back
-`grounded=true` **and** `insufficientEvidence=true`, with a single citation to
-the irrelevant chunk 14. It did not manufacture an answer, and it flagged its own
-evidence as insufficient. A system that answered this confidently with a citation
-to the site register would be far more dangerous than one that admits it does not
-know.
+| | Recall@1 | Recall@3 | Recall@5 | MRR | not retrieved |
+|---|---|---|---|---|---|
+| before | 0.6364 | 0.8182 | 0.9091 | 0.8033 | 1 |
+| after (`EXPAND_V1`) | 0.6364 | **0.9091** | 0.9091 | **0.8333** | 1 |
 
-Two real findings here, both worth stating:
+Per query, which is the part that actually tells you anything:
 
-1. **A vocabulary gap exists between how a corpus is written and how a person
-   asks.** This is the dominant error mode, and no amount of ranking tuning fixes
-   it — the fix is query expansion or predicate-aware normalisation, which is
-   listed as unfinished work. The gold set caught this on its first honest run,
-   which is the argument for having one.
-2. **`insufficientEvidence=true` alongside a citation is the correct outcome,
-   not a contradiction of itself.** "I retrieved something, and it does not
-   answer your question" is exactly the state a grounded system should be in.
+| Query | Before | After |
+|---|---|---|
+| Who does Calder collaborate with | not retrieved | **rank 2** |
+| Who does Orion Systems supply | rank 5 | **rank 6 — out of the top-5 window** |
+| the other nine | unchanged | unchanged |
+
+**One query fixed and one traded.** Recall@3 and MRR rose; Recall@1 and Recall@5
+did not move. Adding `supplies` as a relevance term also pulled in three
+supply-related chunks that outranked the gold one. That is the ordinary
+precision/recall cost of an extra term in a bag-of-words query, and it is the
+reason the before figure is shown next to the after figure rather than replaced
+by it.
+
+### What the index actually does, measured
+
+Three things about MySQL FULLTEXT contradicted the obvious assumption, and each
+one changed the implementation:
+
+1. **An underscore is a word character.** `collaborates_with` is indexed as
+   *one* token. `+collaborates` scores **0** against a chunk that contains the word
+   at offset 640; `+collaborates_with` scores **6.4**. An expansion to the head
+   word reads as correct and expands nothing.
+
+2. **`IN NATURAL LANGUAGE MODE` ignores boolean syntax.** `+calder +collaborate`
+   and `calder collaborate` both score 0.8827 on the same chunk, and
+   `(+a OR +b)` scores identically to `+a +b` in every case tried. So the base
+   query was never the boolean AND the code claimed, and expansion is not
+   "widening an AND" — it is adding the corpus token as an extra relevance term.
+   The `OR` groups were removed, and both javadocs were corrected.
+   `QueryExpanderTest` asserts no boolean syntax is emitted, so the false claim
+   cannot return as documentation.
+
+3. **Adding a term admits documents that contain it.** Point 2 in the table above
+   is the cost.
+
+### The remaining miss
+
+`Who does Orion Systems supply` still does not retrieve chunk 12 within the
+top-five window. Chunk 12 contains `supplies`, not `supply`, and InnoDB does no
+stemming or prefix matching — so the expansion target was necessary, and it is
+also what pushed three other chunks above the gold one.
+
+Fixing this properly needs a reranker that scores a passage against the question
+rather than against its own tokens, or a gold set large enough to tell a
+systematic bias from noise. Neither is in scope here, so it stays open.
+
+**What the system did while unable to answer is worth recording.** The chat
+response came back `grounded=true` **and** `insufficientEvidence=true`, citing
+whatever it had retrieved. It did not manufacture an answer and it flagged its own
+evidence as insufficient. A system that answered confidently on this input would
+be far more dangerous than one that admits it does not know — and two real
+findings came out of the diagnosis:
+
+1. **A vocabulary gap between how a corpus is written and how a person asks is
+   the dominant error mode**, and no amount of ranking tuning fixes it. The gold
+   set caught it on its first honest run.
+2. **`insufficientEvidence=true` alongside a citation is the correct outcome, not
+   a contradiction of itself.** "I retrieved something, and it does not answer
+   your question" is exactly the state a grounded system should be in.
 
 ### What would improve it
 
 In rough order of expected value per unit of work:
 
-- **Predicate-aware query expansion.** Map question words onto the predicate
-  vocabulary — `collaborate` → `collaborates_with`. The predicate registry
-  already exists; the mapping does not. This is the single highest-value change.
+- **A reranker.** `Who does Orion Systems supply` now fails because adding a
+  relevance term admits other chunks. A reranker that scores a passage against the
+  question, rather than against its own tokens, is the fix; expansion alone
+  cannot be, and the before/after table shows the cost it pays.
 - **Chunk-level answering, not chunk-level retrieval.** Chunk 20 is a whole
   memo. Splitting it would put the one relevant sentence in a much smaller
   candidate, which helps precision and Recall@1 together.
 - **Entity-aware boosting.** `Calder` resolves to `Calder Dynamics` through entity
   resolution; retrieval does not currently use that resolution.
 - **A larger gold set**, ideally several hundred queries including paraphrases
-  and unanswerable ones, so the numbers mean something.
+  and unanswerable ones, so the numbers mean something. Not done: the labels have
+  to be hand-checked, and a language-model-generated set would measure agreement
+  with the generator rather than whether retrieval works.
+- **A real-model extraction evaluation.** See `docs/limitations.md` §1. Every
+  number above was produced with the offline provider, so none of them says
+  anything about extraction quality.
 
 ---
 
@@ -272,13 +334,13 @@ the registry's are equal in both directions.
 
 - **A real gold set.** Eleven hand-checked queries indicate behaviour; they do
   not establish it. Hundreds are needed, including paraphrases, multi-hop
-  queries, and queries with no answer.
-- **Predicate-aware query expansion**, which is the fix for the one miss and the
-  error class behind it.
+  queries, and queries with no answer. Not attempted: the labels have to be
+  hand-checked, and generating them would measure agreement with the generator.
 - **Extraction accuracy is unmeasured.** The offline provider is deterministic
   precisely because it is not a real model. The pipeline, validation, quarantine,
   and approval semantics are exercised honestly, but how well extraction handles
-  messy prose is a question this repository cannot answer.
+  messy prose is a question this repository cannot answer. See
+  `docs/limitations.md` §1.
 - **No inter-annotator agreement.** The gold set was checked by one person. Where
   two readers disagree about the correct passage, the set should record both.
 - **No regression baseline in CI.** The gold set can be re-run and compared by
