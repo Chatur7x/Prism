@@ -47,7 +47,10 @@ public class FakeLlmClient implements LlmClient {
     public Map<String, String> describe() {
         Map<String, String> info = new LinkedHashMap<>();
         info.put("provider", "fake");
-        info.put("warning", "OFFLINE TEST MODE: responses are deterministic fixtures, not a model");
+        info.put("testMode", "true");
+        info.put("warning", "FAKE / TEST MODE: responses are deterministic fixtures, not a model. "
+                + "Any accuracy figure from this mode describes the fixture and the pipeline, "
+                + "and says nothing about model quality.");
         return info;
     }
 
@@ -101,7 +104,28 @@ public class FakeLlmClient implements LlmClient {
                 if (!KNOWN_PREDICATES.contains(predicate)) {
                     continue;
                 }
-                String subject = parts[0];
+                // The subject is the whole capitalised run before the
+                // predicate, not just its first word.
+                //
+                // This took only parts[0], so "Meridian Group reports_to
+                // Northstar Holdings" produced the subject "Meridian". Every
+                // multi-word organisation in the demo corpus was therefore
+                // extracted truncated -- "Calder" rather than "Calder Dynamics",
+                // "Orion" rather than "Orion Systems" -- which fed the whole
+                // entity-resolution and graph path a wrong name. It also made the
+                // extraction benchmark report a true-positive count of zero
+                // against its own gold set, which is how the defect was found.
+                StringBuilder subject = new StringBuilder();
+                for (int j = 0; j < i; j++) {
+                    if (j > 0) {
+                        subject.append(' ');
+                    }
+                    subject.append(parts[j]);
+                }
+                String subjectText = subject.toString().strip();
+                if (subjectText.isEmpty()) {
+                    continue;
+                }
                 StringBuilder object = new StringBuilder();
                 for (int j = i + 1; j < parts.length; j++) {
                     if (j > i + 1) {
@@ -121,7 +145,7 @@ public class FakeLlmClient implements LlmClient {
                 if (tripleCount > 0) {
                     triples.append(',');
                 }
-                triples.append("{\"subject\":").append(quote(subject))
+                triples.append("{\"subject\":").append(quote(subjectText))
                         .append(",\"predicate\":").append(quote(predicate))
                         .append(",\"object\":").append(quote(objectText))
                         .append(",\"sentence\":").append(quote(sentence)).append('}');

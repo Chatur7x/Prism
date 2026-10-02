@@ -34,7 +34,8 @@ param(
   # Lets -ApproveAll drive the human gate over memos that are already ingested.
   [long]$CorpusId = 0,
   [switch]$ApproveAll,
-  [int]$Verifications = 0
+  [int]$Verifications = 0,
+  [switch]$ForceReupload
 )
 
 $ErrorActionPreference = 'Continue'
@@ -172,27 +173,66 @@ $curlConfig = Join-Path ${env:TEMP} "prism-seed-curl.cfg"
 [System.IO.File]::WriteAllText($curlConfig, "header = `"Authorization: Bearer $($login.accessToken)`"`n")
 
 $memos = Get-ChildItem $corpusDir -Filter '*.md' | Sort-Object Name
-Say "uploading $($memos.Count) memos through the real multipart endpoint (MD extraction)"
 
-$uploadedIds = @()
-foreach ($memo in $memos) {
-  # "01-meridian-q1-board-memo" -> "Meridian q1 board memo"
-  $stem = $memo.BaseName -replace '^\d+-', ''
-  $title = ($stem -replace '-', ' ')
-  $title = $title.Substring(0, 1).ToUpper() + $title.Substring(1)
+# Idempotence guard.
+#
+# This script was not idempotent: running it twice uploaded all 24 memos again,
+# leaving 48 documents for 24 files. That silently doubles every count in the
+# documentation and makes the demo corpus ambiguous -- two identical copies of
+# the same memo competing in retrieval. The server dedupes triples by content
+# hash but not documents, so nothing upstream caught it.
+#
+# Rather than change upload semantics for every caller, the seeder checks what is
+# already there. Documents are identified by original filename, which is the one
+# thing that survives a re-upload.
+$existing = @{}
+try {
+  $have = Invoke-RestMethod -Method Get -Uri "$Base/api/documents?corpusId=$corpusId&size=500" `
+         -Headers @{ Authorization = "Bearer $($login.accessToken)" } -TimeoutSec 60
+  foreach ($d in @($have)) {
+    if ($d.originalFilename) { $existing[$d.originalFilename] = $d.id }
+  }
+} catch {
+  Say "could not list existing documents: $($_.Exception.Message)" 'Yellow'
+}
 
-  $json = & curl.exe -s --config $curlConfig -X POST "$Base/api/documents" `
-    -F "corpusId=$corpusId" `
-    -F "title=$title" `
-    -F "file=@$($memo.FullName);type=text/markdown" 2>&1
+if ($existing.Count -eq $memos.Count) {
+  Say ''
+  Say "corpus $corpusId already holds all $($memos.Count) memos; skipping upload." 'Yellow'
+  Say '  Pass -ForceReupload to add them again, or drop the corpus and re-run.' 'Yellow'
+  $uploadedIds = @($existing.Values)
+} else {
+  if ($existing.Count -gt 0) {
+    Say ''
+    Say "corpus holds $($existing.Count) of $($memos.Count) memos; uploading the rest." 'Yellow'
+  }
+  Say "uploading $($memos.Count) memos through the real multipart endpoint (MD extraction)"
 
-  try {
-    $result = $json | ConvertFrom-Json
-    if ($null -eq $result.id) { throw "no id in response: $json" }
-    $uploadedIds += $result.id
-    Say ("  queued {0,-46} doc #{1}" -f $memo.Name, $result.id) 'DarkGray'
-  } catch {
-    Say "  FAILED $($memo.Name) -> $json" 'Red'
+  $uploadedIds = @()
+  foreach ($memo in $memos) {
+    if ($existing.ContainsKey($memo.Name)) {
+      Say ("  already present {0,-36} doc #{1}" -f $memo.Name, $existing[$memo.Name]) 'DarkGray'
+      $uploadedIds += $existing[$memo.Name]
+      continue
+    }
+    # "01-meridian-q1-board-memo" -> "Meridian q1 board memo"
+    $stem = $memo.BaseName -replace '^\d+-', ''
+    $title = ($stem -replace '-', ' ')
+    $title = $title.Substring(0, 1).ToUpper() + $title.Substring(1)
+
+    $json = & curl.exe -s --config $curlConfig -X POST "$Base/api/documents" `
+      -F "corpusId=$corpusId" `
+      -F "title=$title" `
+      -F "file=@$($memo.FullName);type=text/markdown" 2>&1
+
+    try {
+      $result = $json | ConvertFrom-Json
+      if ($null -eq $result.id) { throw "no id in response: $json" }
+      $uploadedIds += $result.id
+      Say ("  queued {0,-46} doc #{1}" -f $memo.Name, $result.id) 'DarkGray'
+    } catch {
+      Say "  FAILED $($memo.Name) -> $json" 'Red'
+    }
   }
 }
 Remove-Item $curlConfig -ErrorAction SilentlyContinue

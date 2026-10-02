@@ -66,6 +66,11 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     @Override
     public Map<String, String> describe() {
         Map<String, String> info = new LinkedHashMap<>();
+        info.put("provider", providerName());
+        // Present and false, so a consumer can assert on it without having to know
+        // which provider it is talking to. Absent would have to mean "unknown",
+        // which is exactly the ambiguity this key exists to remove.
+        info.put("testMode", "false");
         // Never expose the API key. Presence only.
         info.put("baseUrl", normalizeBaseUrl(props.baseUrl()));
         info.put("apiKeyConfigured", props.apiKey() != null && !props.apiKey().isBlank() ? "true" : "false");

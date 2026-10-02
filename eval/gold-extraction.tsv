@@ -1,0 +1,127 @@
+# PRISM extraction gold set -- FROZEN
+#
+# Format: document<TAB>subject<TAB>predicate<TAB>object<TAB>source sentence
+#
+# WHAT THIS IS. Every row is a fact the named document states in canonical
+# Subject predicate Object form. The source sentence is included so the label
+# is checkable rather than a matter of opinion: GoldExtractionSetTest asserts
+# each sentence appears verbatim in that document, so a fabricated or drifted
+# label fails the build.
+#
+# HOW IT WAS LABELLED. By transcribing sentences that the corpus states
+# literally, constrained to the 28 registered predicates. Not by a language
+# model, and not by looking at what any extractor returned.
+#
+# WHAT IT CANNOT TELL YOU -- read this before quoting any number from it.
+# The demo corpus states every extractable fact in canonical form and its prose
+# is deliberately uninformative (document 24 states no extractable fact at all).
+# So this set measures transcription and entity resolution, NOT extraction from
+# natural prose. A model will score near 100% here by pattern-matching, and that
+# number says nothing about how it would perform on a contracts pack or a board
+# minute. Presenting it as extraction accuracy would be misleading, and the
+# harness output labels itself accordingly.
+#
+# 99 rows, 23 documents, 15 of the 28 registered predicates. The 13 unused
+# predicates are absent because the corpus never states one -- their absence is
+# recorded rather than padded with invented rows.
+
+document	subject	predicate	object	source_sentence
+01-meridian-q1-board-memo.md	Meridian Group	reports_to	Northstar Holdings	Meridian Group reports_to Northstar Holdings.
+01-meridian-q1-board-memo.md	Meridian Group	parent_organization	Northstar Holdings	Meridian Group parent_organization Northstar Holdings.
+01-meridian-q1-board-memo.md	Meridian Group	headquartered_in	Halden	Meridian Group headquartered_in Halden.
+01-meridian-q1-board-memo.md	Meridian Group	invests_in	Aster Labs	Meridian Group invests_in Aster Labs.
+01-meridian-q1-board-memo.md	Meridian Group	invests_in	Helix Consortium	Meridian Group invests_in Helix Consortium.
+01-meridian-q1-board-memo.md	Meridian Group	controls	Vantage Materials	Meridian Group controls Vantage Materials.
+02-northstar-group-structure.md	Northstar Holdings	controls	Orion Systems	Northstar Holdings controls Orion Systems.
+02-northstar-group-structure.md	Northstar Holdings	controls	Vantage Materials	Northstar Holdings controls Vantage Materials.
+02-northstar-group-structure.md	Northstar Holdings	controls	Meridian Group	Northstar Holdings controls Meridian Group.
+02-northstar-group-structure.md	Northstar Holdings	headquartered_in	Corvale	Northstar Holdings headquartered_in Corvale.
+03-orion-operating-review.md	Orion Systems	parent_organization	Northstar Holdings	Orion Systems parent_organization Northstar Holdings.
+03-orion-operating-review.md	Orion Systems	subsidiary_of	Northstar Holdings	Orion Systems subsidiary_of Northstar Holdings.
+03-orion-operating-review.md	Orion Systems	headquartered_in	Corvale	Orion Systems headquartered_in Corvale.
+03-orion-operating-review.md	Orion Systems	chief_executive	Dana Whitfield	Orion Systems chief_executive Dana Whitfield.
+03-orion-operating-review.md	Orion Systems	funds	Aster Labs	Orion Systems funds Aster Labs.
+03-orion-operating-review.md	Orion Systems	supplies	Pinnacle Freight	Orion Systems supplies Pinnacle Freight.
+03-orion-operating-review.md	Orion Systems	competes_with	Vantage Materials	Orion Systems competes_with Vantage Materials.
+04-aster-research-governance.md	Aster Labs	reports_to	Orion Systems	Aster Labs reports_to Orion Systems.
+04-aster-research-governance.md	Aster Labs	parent_organization	Orion Systems	Aster Labs parent_organization Orion Systems.
+04-aster-research-governance.md	Meridian Group	funds	Aster Labs	Meridian Group funds Aster Labs.
+04-aster-research-governance.md	Orion Systems	supplies	Aster Labs	Orion Systems supplies Aster Labs.
+05-calder-site-register.md	Calder Dynamics	located_in	Halden	Calder Dynamics located_in Halden.
+05-calder-site-register.md	Calder Dynamics	located_in	Corvale	Calder Dynamics located_in Corvale.
+05-calder-site-register.md	Calder Dynamics	operated_by	Meridian Group	Calder Dynamics operated_by Meridian Group.
+05-calder-site-register.md	Calder Dynamics	operated_by	Northstar Holdings	Calder Dynamics operated_by Northstar Holdings.
+05-calder-site-register.md	Calder Dynamics	sources_from	Vantage Materials	Calder Dynamics sources_from Vantage Materials.
+05-calder-site-register.md	Calder Dynamics	sources_from	Pinnacle Freight	Calder Dynamics sources_from Pinnacle Freight.
+05-calder-site-register.md	Calder Dynamics	sources_from	Aster Labs	Calder Dynamics sources_from Aster Labs.
+05-calder-site-register.md	Calder Dynamics	sources_from	Orion Systems	Calder Dynamics sources_from Orion Systems.
+06-vantage-supply-contracts.md	Vantage Materials	parent_organization	Meridian Group	Vantage Materials parent_organization Meridian Group.
+06-vantage-supply-contracts.md	Vantage Materials	subsidiary_of	Meridian Group	Vantage Materials subsidiary_of Meridian Group.
+06-vantage-supply-contracts.md	Vantage Materials	headquartered_in	Halden	Vantage Materials headquartered_in Halden.
+06-vantage-supply-contracts.md	Vantage Materials	supplies	Calder Dynamics	Vantage Materials supplies Calder Dynamics.
+06-vantage-supply-contracts.md	Vantage Materials	supplies	Meridian Group	Vantage Materials supplies Meridian Group.
+06-vantage-supply-contracts.md	Vantage Materials	supplies	Northstar Holdings	Vantage Materials supplies Northstar Holdings.
+07-helix-membership-summary.md	Meridian Group	member_of	Helix Consortium	Meridian Group member_of Helix Consortium.
+07-helix-membership-summary.md	Northstar Holdings	member_of	Helix Consortium	Northstar Holdings member_of Helix Consortium.
+07-helix-membership-summary.md	Aster Labs	member_of	Helix Consortium	Aster Labs member_of Helix Consortium.
+07-helix-membership-summary.md	Orion Systems	member_of	Helix Consortium	Orion Systems member_of Helix Consortium.
+07-helix-membership-summary.md	Meridian Group	collaborates_with	Northstar Holdings	Meridian Group collaborates_with Northstar Holdings.
+07-helix-membership-summary.md	Orion Systems	collaborates_with	Aster Labs	Orion Systems collaborates_with Aster Labs.
+07-helix-membership-summary.md	Calder Dynamics	collaborates_with	Helix Consortium	Calder Dynamics collaborates_with Helix Consortium.
+08-pinnacle-logistics-agreements.md	Pinnacle Freight	supplies	Orion Systems	Pinnacle Freight supplies Orion Systems.
+08-pinnacle-logistics-agreements.md	Pinnacle Freight	supplies	Calder Dynamics	Pinnacle Freight supplies Calder Dynamics.
+08-pinnacle-logistics-agreements.md	Pinnacle Freight	supplies	Northstar Holdings	Pinnacle Freight supplies Northstar Holdings.
+08-pinnacle-logistics-agreements.md	Pinnacle Freight	chief_executive	Dana Whitfield	Pinnacle Freight chief_executive Dana Whitfield.
+08-pinnacle-logistics-agreements.md	Pinnacle Freight	headquartered_in	Corvale	Pinnacle Freight headquartered_in Corvale.
+09-orion-leadership-change.md	Orion Systems	chief_executive	Marcus Reyes	Orion Systems chief_executive Marcus Reyes.
+10-meridian-head-office-relocation.md	Meridian Group	headquartered_in	Corvale	Meridian Group headquartered_in Corvale.
+11-aster-reporting-line-correction.md	Aster Labs	reports_to	Northstar Holdings	Aster Labs reports_to Northstar Holdings.
+11-aster-reporting-line-correction.md	Northstar Holdings	funds	Aster Labs	Northstar Holdings funds Aster Labs.
+12-calder-operator-determination.md	Calder Dynamics	operated_by	Northstar Holdings	Calder Dynamics operated_by Northstar Holdings.
+12-calder-operator-determination.md	Calder Dynamics	sources_from	Vantage Materials	Calder Dynamics sources_from Vantage Materials.
+12-calder-operator-determination.md	Calder Dynamics	sources_from	Pinnacle Freight	Calder Dynamics sources_from Pinnacle Freight.
+12-calder-operator-determination.md	Calder Dynamics	sources_from	Aster Labs	Calder Dynamics sources_from Aster Labs.
+12-calder-operator-determination.md	Calder Dynamics	sources_from	Orion Systems	Calder Dynamics sources_from Orion Systems.
+13-vantage-ownership-restatement.md	Vantage Materials	parent_organization	Northstar Holdings	Vantage Materials parent_organization Northstar Holdings.
+13-vantage-ownership-restatement.md	Vantage Materials	subsidiary_of	Northstar Holdings	Vantage Materials subsidiary_of Northstar Holdings.
+13-vantage-ownership-restatement.md	Northstar Holdings	controls	Vantage Materials	Northstar Holdings controls Vantage Materials.
+14-meridian-accounting-policy.md	Meridian Group	parent_organization	Northstar Holdings	Meridian Group parent_organization Northstar Holdings.
+14-meridian-accounting-policy.md	Meridian Group	invests_in	Aster Labs	Meridian Group invests_in Aster Labs.
+14-meridian-accounting-policy.md	Meridian Group	invests_in	Helix Consortium	Meridian Group invests_in Helix Consortium.
+15-northstar-risk-register.md	Pinnacle Freight	supplies	Orion Systems	Pinnacle Freight supplies Orion Systems.
+15-northstar-risk-register.md	Pinnacle Freight	supplies	Calder Dynamics	Pinnacle Freight supplies Calder Dynamics.
+15-northstar-risk-register.md	Vantage Materials	supplies	Calder Dynamics	Vantage Materials supplies Calder Dynamics.
+15-northstar-risk-register.md	Aster Labs	supplies	Calder Dynamics	Aster Labs supplies Calder Dynamics.
+16-helix-research-allocation.md	Meridian Group	member_of	Helix Consortium	Meridian Group member_of Helix Consortium.
+16-helix-research-allocation.md	Northstar Holdings	member_of	Helix Consortium	Northstar Holdings member_of Helix Consortium.
+16-helix-research-allocation.md	Aster Labs	member_of	Helix Consortium	Aster Labs member_of Helix Consortium.
+16-helix-research-allocation.md	Orion Systems	collaborates_with	Aster Labs	Orion Systems collaborates_with Aster Labs.
+16-helix-research-allocation.md	Meridian Group	collaborates_with	Northstar Holdings	Meridian Group collaborates_with Northstar Holdings.
+17-pinnacle-executive-succession.md	Pinnacle Freight	chief_executive	Dana Whitfield	Pinnacle Freight chief_executive Dana Whitfield.
+18-aster-budget-authority.md	Northstar Holdings	funds	Aster Labs	Northstar Holdings funds Aster Labs.
+18-aster-budget-authority.md	Meridian Group	funds	Aster Labs	Meridian Group funds Aster Labs.
+18-aster-budget-authority.md	Aster Labs	parent_organization	Northstar Holdings	Aster Labs parent_organization Northstar Holdings.
+19-calder-site-consolidation.md	Calder Dynamics	located_in	Halden	Calder Dynamics located_in Halden.
+19-calder-site-consolidation.md	Calder Dynamics	operated_by	Northstar Holdings	Calder Dynamics operated_by Northstar Holdings.
+19-calder-site-consolidation.md	Calder Dynamics	sources_from	Vantage Materials	Calder Dynamics sources_from Vantage Materials.
+19-calder-site-consolidation.md	Calder Dynamics	sources_from	Pinnacle Freight	Calder Dynamics sources_from Pinnacle Freight.
+20-vantage-pricing-position.md	Vantage Materials	supplies	Calder Dynamics	Vantage Materials supplies Calder Dynamics.
+20-vantage-pricing-position.md	Vantage Materials	supplies	Meridian Group	Vantage Materials supplies Meridian Group.
+20-vantage-pricing-position.md	Vantage Materials	supplies	Northstar Holdings	Vantage Materials supplies Northstar Holdings.
+20-vantage-pricing-position.md	Vantage Materials	subsidiary_of	Northstar Holdings	Vantage Materials subsidiary_of Northstar Holdings.
+20-vantage-pricing-position.md	Vantage Materials	parent_organization	Northstar Holdings	Vantage Materials parent_organization Northstar Holdings.
+21-orion-shared-services.md	Orion Systems	parent_organization	Northstar Holdings	Orion Systems parent_organization Northstar Holdings.
+21-orion-shared-services.md	Orion Systems	chief_executive	Marcus Reyes	Orion Systems chief_executive Marcus Reyes.
+21-orion-shared-services.md	Orion Systems	funds	Aster Labs	Orion Systems funds Aster Labs.
+21-orion-shared-services.md	Orion Systems	supplies	Pinnacle Freight	Orion Systems supplies Pinnacle Freight.
+22-secretariat-reconciliation-log.md	Meridian Group	headquartered_in	Corvale	Meridian Group headquartered_in Corvale.
+22-secretariat-reconciliation-log.md	Aster Labs	reports_to	Northstar Holdings	Aster Labs reports_to Northstar Holdings.
+22-secretariat-reconciliation-log.md	Vantage Materials	subsidiary_of	Northstar Holdings	Vantage Materials subsidiary_of Northstar Holdings.
+22-secretariat-reconciliation-log.md	Orion Systems	chief_executive	Marcus Reyes	Orion Systems chief_executive Marcus Reyes.
+23-northstar-midyear-review.md	Northstar Holdings	controls	Orion Systems	Northstar Holdings controls Orion Systems.
+23-northstar-midyear-review.md	Northstar Holdings	controls	Vantage Materials	Northstar Holdings controls Vantage Materials.
+23-northstar-midyear-review.md	Northstar Holdings	controls	Meridian Group	Northstar Holdings controls Meridian Group.
+23-northstar-midyear-review.md	Vantage Materials	parent_organization	Northstar Holdings	Vantage Materials parent_organization Northstar Holdings.
+23-northstar-midyear-review.md	Aster Labs	parent_organization	Northstar Holdings	Aster Labs parent_organization Northstar Holdings.
+23-northstar-midyear-review.md	Orion Systems	chief_executive	Marcus Reyes	Orion Systems chief_executive Marcus Reyes.
+23-northstar-midyear-review.md	Pinnacle Freight	chief_executive	Dana Whitfield	Pinnacle Freight chief_executive Dana Whitfield.

@@ -40,3 +40,7 @@ Thumbs.db
 .mvn/wrapper/maven-wrapper.jar
 *.tsbuildinfo
 .eslintcache
+
+# Evaluation run artifacts. The gold set (eval/gold-extraction.tsv) IS tracked:
+# it is a frozen input, and a report is the dated output of one run against it.
+eval/report-*.json
