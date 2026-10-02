@@ -163,12 +163,91 @@ when it is the first thing to touch the API — which makes it a flaky test rath
 than a reliable one.
 
 ```bash
-cd backend && mvn test      # 107 tests
+cd backend && mvn test      # 177 tests, 0 skipped
 cd frontend && npm run build
+
+# 31-check security probe, including cross-corpus authorization
+powershell -File scripts/security-probe.ps1 -OwnerUsername <u>
+
+# 18-endpoint contract check: live JSON against frontend/src/api/types.ts,
+# in both directions
+powershell -File scripts/contract-check.ps1 -Username <u>
 ```
 
-Six tests skip when no Docker daemon is reachable — see
-[Known limitations](#known-limitations).
+All 177 backend tests run, including the 6 migration integration tests against a
+real MySQL container. Nothing is skipped and nothing is counted green for having
+not executed.
+
+---
+
+## Status
+
+**NOT RELEASE CANDIDATE.** One limitation blocks it on its own, and it is not a
+defect in the code: **no real language model has ever been evaluated.** Everything
+measured so far ran against a deterministic offline fixture, which proves the
+pipeline mechanics and says nothing about extraction or judgement quality.
+
+The measurement harness for it now exists and is verified end to end — 99
+hand-checked labels whose source sentences are asserted against the corpus, a
+runner that executes the production extraction path, and a CLI that writes a
+reproducible JSON report. It has been run against the offline provider and
+produces sensible numbers. It has **not** been run against a real model, because
+no provider credentials were available in the environment this was built in.
+
+Two further gaps are recorded rather than glossed: the demo corpus states facts in
+canonical form, so even a completed real-model run would measure transcription
+rather than extraction from prose; and the automated schema contract check that
+would catch an unmapped NOT NULL column is still outstanding.
+
+[`docs/limitations.md`](docs/limitations.md) is the authoritative list, including
+a phase-by-phase table of what has not been reached. See
+[`docs/evaluation.md`](docs/evaluation.md) for every measured figure and the
+caveat that must accompany it.
+
+---
+
+## Extraction evaluation
+
+The offline provider proves the pipeline mechanics and nothing else. To measure
+whether a provider extracts anything at all:
+
+```bash
+powershell -File scripts/llm-eval.ps1 -Username <verifier> -Password <p> -CorpusId 1
+```
+
+This runs the production extraction path — same prompt, same retry policy, same
+parser, same validator — over every chunk carrying a label in
+`eval/gold-extraction.tsv`, and writes a dated JSON report to
+`eval/report-<provider>-<timestamp>.json` containing provider, model, prompt
+version, temperature, max tokens, gold-set size, timestamp, matching rule and
+per-chunk outcomes. Reports are gitignored; the gold set is tracked, because it is
+a frozen input rather than a run output.
+
+Each label records the sentence it was read from, and a test asserts that sentence
+appears verbatim in the document it is attributed to — so a fabricated label fails
+the build instead of quietly depressing a measured score.
+
+**Read the caveat before quoting any number from it.** The demo corpus states every
+extractable fact in canonical `Subject predicate Object` form and its prose is
+deliberately uninformative, so the figures measure transcription and entity
+resolution, not extraction from natural prose. The report embeds that caveat as a
+`corpusLimitation` field so it travels with the numbers.
+
+Against a real provider, set the environment before starting the backend — never
+hardcode a credential:
+
+```bash
+export LLM_PROVIDER=openai          # or any OpenAI-compatible base URL
+export LLM_BASE_URL=https://your-endpoint/v1
+export LLM_API_KEY=<key>
+export LLM_EXTRACT_MODEL=your-model
+```
+
+`LLM_PROVIDER=fake` selects the offline fixture instead. There is no fallback from
+a real provider to the fixture: the fixture requires `fake` explicitly, so an unset
+or misspelt value selects the real client and fails loudly. In fixture mode the
+startup banner says `FAKE / TEST MODE` and `scripts/llm-eval.ps1` prints the same,
+so a fixture run cannot be presented as a model run.
 
 ---
 
@@ -293,16 +372,18 @@ real model.
 <details>
 <summary>Previously listed here in full</summary>
 
-**Six migration integration tests skip without a usable Docker daemon.** They use
-Testcontainers, which cannot negotiate with Docker 29's API version — the probe
-returns `BadRequestException (Status 400)` before any container starts. This is a
-version incompatibility, not a broken test. The migrations *have* been verified:
-they were applied by hand in a throwaway `mysql:8.0.36` container, all six, from
-an empty schema, and the resulting 28 tables, 77 foreign keys, and 37 CHECK
-constraints were inspected. What is unverified is that the tests will run
-unattended in CI, which needs a Docker/Testcontainers pairing that negotiates.
-Until then, they stay skipped — weakening them to make a suite green would have
-destroyed the only automated check on the schema.
+**Six migration integration tests used to skip without a usable Docker daemon.
+This is now fixed.** Testcontainers 1.21.3 shades docker-java, and the shaded
+`RemoteApiVersion` enum stops at `VERSION_1_44`, while Docker 29 speaks API 1.55
+and answers anything below its floor with a 400 and an empty body. The container
+never started, so the tests reported green without executing anything. The fix is
+the library's own supported knob: pin the negotiated version to 1.44, which is the
+highest the library can express and the lowest Docker 29 accepts. All 6 now run.
+
+Making them run immediately exposed two defects in the tests themselves, which had
+never executed: one selected two columns and asked for a single `String`, and one
+asserted `COUNT(*) FROM users` is zero when `AdminBootstrap` creates the first
+admin on startup. Neither was weakened to pass; both now assert something true.
 
 **`ddl-auto: validate` is one-directional.** It compares the entity mappings to
 the schema. It cannot detect a NOT NULL column with no default that *no entity
@@ -311,8 +392,7 @@ mentions* — there is nothing to compare. A `corpus_id` column on
 only found when synthesis was first executed, at which point every synthesis
 failed with `Field 'corpus_id' doesn't have a default value`. A cross-check of
 every NOT NULL column against every mapping is documented in
-`docs/architecture.md`; making it a permanent automated test needs the same
-working Testcontainers setup.
+`docs/architecture.md`; making it a permanent automated test is still outstanding.
 
 **SSE event delivery is single-instance.** Debate progress events are held in
 memory and pushed over SSE. Two backend instances behind a load balancer would

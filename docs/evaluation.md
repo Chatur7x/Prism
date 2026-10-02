@@ -1,7 +1,7 @@
 # Evaluating PRISM
 
-This document is about two different things that are easy to confuse, and the
-distinction is the reason retrieval has its own evaluation at all.
+This document is about three different things that are easy to confuse, and the
+distinctions are the reason each has its own evaluation.
 
 1. **Does the system find the right passage?** — `retrieval_evaluation`.
 2. **Is the claim about that passage true?** — the verdict path and the human
@@ -11,6 +11,87 @@ They are separate on purpose. A retrieval metric that appeared to measure truth
 would invite optimising for the wrong thing, and the wrong thing is easy to
 optimise for: raise Recall@1 by retrieving longer chunks, and measured
 "groundedness" goes up while actual grounding gets worse.
+
+## Extraction
+
+### What it measures, and what it cannot
+
+`POST /api/llm-evaluation/extraction?corpusId=N` runs the production extraction
+path — the same `EXTRACT_V1` prompt, the same retry policy, the same parser, the
+same validator — over every chunk carrying a hand-checked label, and reports
+triple precision/recall/F1, claim precision/recall/F1, malformed-output rate and
+quarantine rate. It is read-only: it persists nothing and creates no trace run,
+because it must not be able to change the state it measures.
+
+The gold set is `eval/gold-extraction.tsv`, 99 rows over 23 of the 24 demo
+documents and 15 of the 28 registered predicates. Every row records the document
+and the sentence it was read from, and `GoldExtractionSetTest` asserts each
+sentence appears verbatim in that document, so a fabricated or drifted label
+fails the build rather than quietly depressing a measured score. The set is
+frozen and is **not** regenerated from the corpus: a set derived from whatever
+the corpus currently says cannot detect that the corpus changed underneath a
+measurement. The 13 uncovered predicates are absent because the corpus never
+states one; padding them would improve coverage on paper and be a lie about the
+corpus.
+
+**Read this before quoting any figure from it.** The demo corpus states every
+extractable fact in canonical `Subject predicate Object` form, and its prose is
+deliberately uninformative — document 24 states no extractable fact at all. So
+these numbers measure transcription and entity resolution. They do **not**
+measure extraction from natural prose, and a model will score near 100% here by
+pattern-matching. That caveat is a constant the report embeds as
+`corpusLimitation` rather than prose in a document someone may not read.
+
+### Measured, against the offline provider
+
+Run on 2026-10-02, 23 chunks carrying a label, `LLM_PROVIDER=fake`,
+`EXTRACT_V1`, temperature 0.0, max tokens 2048, max retries 3:
+
+| | P | R | F1 | tp | fp | fn |
+|---|---|---|---|---|---|---|
+| triples | 0.9706 | 1.0000 | 0.9851 | 99 | 3 | 0 |
+| claims | 0.3641 | 0.6768 | 0.4735 | 67 | 117 | 32 |
+
+| | |
+|---|---|
+| malformed rate | 0.0000 (0 of 23) |
+| quarantine rate | 0.0000 (0 of 23) |
+| provider errors | 0 |
+| retries exhausted | 0 |
+
+**No real model has been evaluated.** These figures describe a deterministic
+fixture and the pipeline around it. `scripts/llm-eval.ps1` prints
+`PROVIDER: FAKE / TEST MODE` in that case and exits 3 if every chunk was refused,
+so a fixture run cannot be presented as a model run.
+
+### Running it against a real model
+
+Set before starting the backend — never hardcode a credential:
+
+```powershell
+$env:LLM_PROVIDER       = 'openai'      # any OpenAI-compatible endpoint
+$env:LLM_BASE_URL       = 'https://your-endpoint/v1'
+$env:LLM_API_KEY        = '<key>'
+$env:LLM_EXTRACT_MODEL  = 'your-model'
+```
+
+then:
+
+```powershell
+powershell -File scripts/llm-eval.ps1 -Username <verifier> -Password '...' -CorpusId 1
+```
+
+The script writes a dated JSON report to `eval/report-<provider>-<timestamp>.json`
+containing provider, model, prompt version, temperature, max tokens, max retries,
+gold-set size, timestamp, the matching rule and per-chunk outcomes. Reports are
+gitignored; the gold set is tracked.
+
+Entity-resolution precision/recall/F1 are **not** measured. Resolving entities
+requires writing them, which would corrupt the corpus being measured, and the
+harness is deliberately read-only. That is recorded as absent rather than
+approximated. Verdict accuracy against a hand-labelled claim set is likewise not
+yet measured; the verdicts produced for the seeded corpus come from the offline
+provider, which returns no `SUPPORTED`, so there is no positive class to score.
 
 ---
 
@@ -186,6 +267,54 @@ supply-related chunks that outranked the gold one. That is the ordinary
 precision/recall cost of an extra term in a bag-of-words query, and it is the
 reason the before figure is shown next to the after figure rather than replaced
 by it.
+
+### Re-measured after the offline-provider fix
+
+The table above was measured on a demo corpus built while the offline provider
+had a defect: it took only the first word of a sentence as the triple subject, so
+"Meridian Group" was extracted as "Meridian". That defect has been fixed, and the
+corpus has since been rebuilt from an empty database. Re-running the same gold
+set against the rebuilt corpus (`runKey ec09cd64…`, `EXPAND_V1`) gives:
+
+| | Recall@1 | Recall@3 | Recall@5 | MRR | not retrieved |
+|---|---|---|---|---|---|
+| after, rebuilt corpus | **0.7273** | 0.9091 | **1.0** | **0.8364** | 0 |
+
+| Query | Gold | Rank on rebuilt corpus |
+|---|---|---|
+| Where is the Calder site located | 14 | 1 |
+| Who operates the Corvale site | 14 | 1 |
+| Which organisation does Aster Labs report to | 12 | 1 |
+| Who is the parent organisation of Aster Labs | 12 | 2 |
+| Which organisation owns Vantage Materials | 18 | 1 |
+| Vantage Materials parent organisation | 18 | 1 |
+| Who does Orion Systems supply | 12 | **5** |
+| Who does Orion Systems compete with | 9 | 1 |
+| Who does Calder collaborate with | 20 | 2 |
+| Who funds joint research in two areas | 20 | 1 |
+| Who operates the shared services migration programme | 74 | 1 |
+
+`collaborate` is still rank 2. `supply`, which the earlier measurement put at
+rank 6 and outside the top-5 window, is now rank 5 and inside it, so Recall@5 is
+1.0 and nothing is unretrieved.
+
+**The cause of this improvement is not established.** Two honest candidates
+remain and neither has been confirmed:
+
+- The corpus was rebuilt from an empty database, so triple, verdict and
+  contradiction state differ from the earlier run even though the chunk text and
+  the gold set are byte-identical (`runKey` is unchanged, which is what proves the
+  gold set is the same).
+- The provider fix changed entity names from "Meridian" to "Meridian Group".
+  `RetrievalService` does not read the entity table, so this should not matter,
+  which is a reason to doubt it rather than to accept it.
+
+The **before** leg was not re-run, because `QueryExpander` is a static utility
+with no runtime toggle; disabling it to produce a baseline would mean editing
+source. So the two rows are not a controlled comparison and are not presented as
+one. The controlled comparison remains the before/after pair above, measured on
+one corpus; the rebuilt-corpus row is a fresh measurement that supersedes the
+earlier *after* figure.
 
 ### What the index actually does, measured
 

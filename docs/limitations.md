@@ -17,34 +17,60 @@ Two rules govern its contents:
 
 ---
 
-## 1. Retrieval has never been measured against a real model
+## 1. No real model has ever been evaluated
 
-**Status: not done.** No real-provider extraction evaluation has been run.
+**Status: harness built and verified; real-model execution not performed.** This is
+the single blocking limitation for a release decision.
 
 The retrieval benchmark measures PRISM's own retriever over a fixed corpus. That
 is a genuine measurement and it caught a real defect (§3), but it says nothing
 about extraction quality, because extraction in every run so far has been done by
 `FakeLlmClient`.
 
-What is therefore **unknown**, and should be treated as unknown:
+**The measurement harness now exists and is verified end to end:**
+
+- `eval/gold-extraction.tsv` — 99 hand-checked labels over 23 documents and 15 of
+  the 28 registered predicates. Each row records the sentence it was read from and
+  `GoldExtractionSetTest` asserts that sentence appears verbatim in that document,
+  so a fabricated label fails the build. The set is frozen.
+- `LlmExtractionEvaluationService` + `POST /api/llm-evaluation/extraction` — runs
+  the production extraction path (same prompt, same retry policy, same parser,
+  same validator) over every labelled chunk. Read-only: persists nothing, creates
+  no trace run.
+- `scripts/llm-eval.ps1` — writes a dated JSON report with provider, model, prompt
+  version, temperature, max tokens, gold-set size, timestamp, matching rule and
+  per-chunk outcomes.
+
+Verified against the offline provider: triples P 0.9706 / R 1.0000 / F1 0.9851,
+claims P 0.3641 / R 0.6768 / F1 0.4735, malformed 0/23, quarantine 0/23. **These
+numbers describe a deterministic fixture and the pipeline around it, and say
+nothing about any model.**
+
+**What remains unknown, and must be treated as unknown:**
 
 - whether a real model produces well-formed JSON at the required schema rate;
 - how often it invents a source sentence (the grounding check rejects it, so the
   rate is measurable but unmeasured);
-- extraction precision and recall against hand-labelled truth;
-- entity-resolution quality on real text;
-- agreement between machine verdicts and human verdicts.
+- extraction precision and recall against hand-labelled truth, on prose;
+- entity-resolution quality on real text — not measured at all, because resolving
+  entities means writing them, which would corrupt the corpus being measured;
+- agreement between machine verdicts and human verdicts. The seeded corpus
+  produces no `SUPPORTED` verdict from the offline provider, so there is no
+  positive class to score.
+
+There is also a **corpus** limitation that no amount of harness work fixes. The
+demo corpus states every extractable fact in canonical `Subject predicate Object`
+form and its prose is deliberately uninformative, so even a completed real-model
+run against it would measure transcription, not extraction from natural prose. A
+prose corpus has to exist before this limitation can be closed.
 
 PRISM's response to malformed output is designed and tested — parse, schema,
 semantics, then quarantine with a reason — but the *rate* at which a real model
 triggers it is unmeasured. A model that quarantines 40% of chunks would be a
 perfectly correct system and a useless one.
 
-**What exists to close this:** `OpenAiCompatibleLlmClient` already supports a
-real provider through `LLM_PROVIDER`, `LLM_BASE_URL` and `LLM_API_KEY`. What does
-not exist is the harness — a labelled gold set, a runner, and a metrics report.
-Until that runs, no statement about model quality should be made from this
-repository.
+Until a real-provider run happens, no statement about model quality should be made
+from this repository's numbers.
 
 ### The offline provider
 
@@ -61,6 +87,37 @@ Its specific limitations, each of which shapes what the demo can demonstrate:
 | Vocabulary is exactly the 28 registered predicates | A predicate outside the registry is quarantined, correctly. `PredicateVocabularyConsistencyTest` enforces the match in both directions. |
 | **Never returns a `SUPPORTED` verdict** | Every verdict is `INSUFFICIENT_EVIDENCE`, so **the VERIFIED_ONLY graph scope is always empty**. This is a real gap in the demo: a headline feature cannot be demonstrated offline. See §8. |
 | Deterministic, no sampling | Useful for tests, useless for measuring variance. |
+
+It also now takes the whole capitalised run before the predicate as the subject.
+It previously took only the first word, so "Meridian Group" was extracted as
+"Meridian" and every multi-word organisation in the demo corpus carried a
+truncated name into entity resolution and the graph. Found because the extraction
+benchmark scored zero true positives against its own gold set.
+
+### Making the fixture impossible to mistake for a model
+
+The risk with an offline provider is not a crash, it is a number. A report
+generated against the fixture is arithmetically valid and completely silent that
+no model was involved, so the mode is stated three ways, because each fails
+differently:
+
+- **a startup banner** from `LlmModeReporter`, at WARN, so it is in the first
+  thirty log lines rather than somewhere a scrollback search might miss;
+- **`testMode`** on the provider description, which reaches the admin API and
+  therefore anything that archives it. The real provider reports `testMode=false`
+  explicitly, so a consumer can assert on it without knowing which provider it is
+  talking to;
+- **`corpusLimitation` and the provider banner in `scripts/llm-eval.ps1`**, which
+  prints `PROVIDER: FAKE / TEST MODE` and exits 3 if every chunk was refused,
+  since the score above that would be vacuous.
+
+**There is no fallback from a real provider to the fixture.** The fixture bean
+requires `prism.llm.provider=fake` explicitly; the real bean is `matchIfMissing`.
+An unset or misspelt provider value therefore selects the real client and fails
+loudly, rather than degrading to canned responses. `LlmProviderModeTest` asserts
+both directions against the annotations themselves, since the annotation is what
+the container consults — a future edit that added a `try`/`catch` around provider
+construction would otherwise quietly reintroduce the silent downgrade.
 
 The `VERIFIED_ONLY` consequence deserves emphasis because it is easy to mistake
 for a bug. The scope returns no nodes, and that is *correct*: no verdict is
@@ -140,32 +197,44 @@ properly needs either a reranker or a larger gold set; neither is in scope here.
 
 ---
 
-## 4. Testcontainers cannot talk to the installed Docker
+## 4. Testcontainers pinned to Docker API 1.44
 
-**Status: unresolved.** `MigrationIntegrationTest` skips 6 tests locally.
+**Status: resolved.** `MigrationIntegrationTest` runs 6 real integration tests,
+0 skipped, against a real MySQL container.
 
 ```
 NpipeSocketClientProviderStrategy: failed with exception BadRequestException (Status 400)
 ```
 
-Testcontainers 1.21.3 negotiates a Docker API version its bundled client knows,
-and Docker 29.6.2 answers on a newer one. The mismatch is a 400 at the handshake,
-before any container is created. Downgrading Docker to hide this was rejected: it
-would make a developer's machine, not the project's requirements, the thing that
-has to change.
+The diagnosis: Testcontainers 1.21.3 *shades* docker-java, and the shaded
+`RemoteApiVersion` enum stops at `VERSION_1_44`. Docker 29.6.2 speaks API 1.55 and
+answers anything below its floor with a 400 and an all-empty body, which
+docker-java surfaces as `BadRequestException` during the daemon probe. The
+container never started, so the container-missing skip took over and the 6 tests
+reported green without executing anything.
 
-**The 6 tests are real integration tests and have not been weakened.** They remain
-`@Testcontainers(disabledWithoutDocker = true)`, which skips rather than passes.
-No assertion was softened and no migration check was replaced with a mock.
+1.21.3 is the current release, so there is no version to bump to. The fix is the
+library's own supported knob: pin the negotiated API version to **1.44**, which is
+the highest the library can express and the lowest Docker 29 accepts, so it works
+on both old and new daemons. It is a `pom` property passed to surefire, so
+`mvn test` needs no manual flag and CI inherits it. Overridable with
+`-Ddocker.api.version=…`.
 
-They have been run for real, outside the harness: all 7 migrations were applied
-inside a `mysql:8.0.36` container from an empty database, and the resulting schema
-was verified — 29 tables, 77 foreign keys, 37 CHECK constraints, one FULLTEXT
-index, zero nullable primary keys. What is unverified is the *test code path*, not
-the migrations.
+Making the tests run immediately exposed two defects **in the tests themselves**,
+which had never executed before:
 
-**CI needs a Docker and Testcontainers pairing that negotiates.** Until that is
-configured, `mvn clean test` reports 6 skips and that is the honest state.
+- `requiredIndexesExist` selected two columns and asked `JdbcTemplate` for a
+  single `String`, which throws `IncorrectResultSetColumnCount`, while the
+  assertion beneath it matched on a `table|index` label the query never produced.
+- `hibernateMappingMatchesSchema` asserted `COUNT(*) FROM users` is zero. That is
+  simply wrong: `AdminBootstrap` creates the first admin on startup, so the count
+  is 1 before anything else runs.
+
+Neither was weakened to make it pass. Both now assert something true.
+
+**Residual limitation:** a daemon older than Docker 25 does not know API 1.44 and
+would fail the probe. CI pins the pairing; a developer on a pre-25 daemon needs
+`-Ddocker.api.version=` set to a version that daemon accepts.
 
 ---
 
@@ -263,26 +332,26 @@ For completeness, so the gap between this document and the plan is explicit:
 
 | Phase | State |
 |---|---|
-| 1 — repository audit | **Done.** 12 defects found and fixed; see the release report. |
-| 2 — predicate-aware query expansion | **Done**, with one regression recorded (§3). |
-| 3 — real LLM validation workflow | **Not done.** Provider support exists; the harness does not (§1). |
-| 4 — expand retrieval gold set | **Not done**, deliberately (§2). |
-| 5 — Testcontainers / CI | **Not resolved** (§4). |
-| 6 — database contract audit | **Partly.** `ddl-auto: validate` plus the SQL cross-check documented in `architecture.md`. `validate` cannot detect an unmapped NOT NULL column — it was found by a runtime error, not by validation — so a dedicated startup check is still wanted. |
+| 1 — repository audit | **Done.** 13 defects found and fixed; see the release report. |
+| 2 — predicate-aware query expansion | **Done**, with the `supply` regression recorded (§3). |
+| 3 — real LLM validation workflow | **Harness done, real-model execution not.** `eval/gold-extraction.tsv` (99 verified labels), `LlmExtractionEvaluationService`, `scripts/llm-eval.ps1`. Verified end-to-end against the offline provider. **No real model has been evaluated** (§1). |
+| 4 — expand retrieval gold set | **Not done**, deliberately (§2). The 11 hand-checked queries remain the frozen baseline. |
+| 5 — Testcontainers / CI | **Resolved** (§4). 6 migration integration tests run, 0 skipped. |
+| 6 — database contract audit | **Still open.** `ddl-auto: validate` plus the SQL cross-check in `architecture.md`. `validate` cannot detect an unmapped NOT NULL column — it was found by a runtime error, not by validation — so a dedicated schema contract check is still wanted and was **not** built in this pass. |
 | 7 — authentication hardening | **Decided and documented** (§5). |
 | 8 — SSE review | **Not done** (§6). |
-| 9 — security penetration pass | **Done.** 31 checks in `scripts/security-probe.ps1`; it found a cross-corpus data leak. |
+| 9 — security penetration pass | **Done.** 31 checks in `scripts/security-probe.ps1`; it found a cross-corpus data leak. Re-run green after this pass. |
 | 10 — prompt injection tests | **Done** at the deterministic layer (`PromptInjectionTest`, 9 tests). Model-level susceptibility is unmeasured (§1). |
-| 11 — failure recovery | **Not done.** LLM timeout, 429, 500, malformed output, database restart, duplicate invocation, concurrent approval and debate advance are untested. |
+| 11 — failure recovery | **Partly done.** Provider timeout / 429 / 5xx / permanent-failure, retry bounds, backoff cap, and the malformed-response quarantine gate are now tested (`LlmFailureRecoveryTest`, 10 tests; `MalformedResponseQuarantineTest`, 11 tests). **Not tested:** database interruption mid-work, application restart during extraction or synthesis, duplicate extraction/approval/debate start, and concurrent debate advance. |
 | 12 — provenance audit | **Not done.** |
 | 13 — Glass Box audit | **Partly.** Found and fixed a trace-detail contract bug that made the Glass Box header render `Trace #undefined`. Replay-uses-stored-data not verified. |
-| 14 — API contract audit | **Partly** (§7). |
+| 14 — API contract audit | **Partly** (§7). 18 endpoints agree in both directions; `docs/api.md` not regenerated from the live schema. Two pagination-shape inconsistencies found and not yet fixed. |
 | 15 — frontend integration audit | **Partly.** 18 endpoints verified by contract check; not exercised in a browser. |
 | 16 — performance baseline | **Not done.** No timings recorded. |
-| 17 — documentation | This file, plus updates to `README.md`, `architecture.md`, `api.md`, `evaluation.md`. |
-| 18 — final demo validation | **Not done.** |
+| 17 — documentation | This file, plus updates to `README.md`, `api.md`, `evaluation.md`. |
+| 18 — final demo validation | **Done.** Corpus rebuilt from empty: 24 documents, 87 chunks, 58 triples approved, 6 verdicts, 10 contradictions, all 5 planted contradictions detected. |
 | 19 — clean-checkout release check | **Not done.** |
-| 20 — release decision | Not reached. |
+| 20 — release decision | Reached. See the release report: **NOT RELEASE CANDIDATE**, on §1 alone. |
 
 ---
 
