@@ -34,6 +34,16 @@ public class ExtractionValidator {
     private final int maxTriples;
     private final int maxClaims;
 
+    /**
+     * Fewest words a grounding reference may contain.
+     *
+     * <p>Exists because a bare substring test is trivially satisfiable: the
+     * sentence {@code "x"} occurs inside "extraction", so it grounded a fabricated
+     * triple and the proposal was accepted as though it had quoted the document.
+     * A reference that is not a phrase cannot be evidence.
+     */
+    private static final int MIN_GROUNDING_TOKENS = 3;
+
     public ExtractionValidator(PredicateSemanticRegistry predicates,
                                com.prism.config.PrismTuningProperties tuning) {
         this.predicates = predicates;
@@ -119,6 +129,15 @@ public class ExtractionValidator {
      *
      * <p>Comparison is whitespace- and case-insensitive so that a model that
      * reflows whitespace is not punished, but a genuinely different sentence is.
+     *
+     * <p><b>Matching is by whole-word token sequence, not by substring.</b> It
+     * used to be a bare {@code contains}, which had two exploitable weaknesses:
+     * a fragment of a longer word could ground a claim (the sentence "band"
+     * matched "abandoned"), and -- worse -- any short string occurring anywhere
+     * in the document satisfied the check. The sentence {@code "x"} passed
+     * against a chunk containing the word "extraction", so a model could ground a
+     * fabricated triple with a one-character reference and be accepted as though
+     * it had quoted the source. A grounding reference has to be a phrase.
      */
     boolean sentenceAppearsIn(String chunkText, String sentence) {
         if (chunkText == null || sentence == null || sentence.isBlank()) {
@@ -129,7 +148,57 @@ public class ExtractionValidator {
         if (needle.isEmpty()) {
             return false;
         }
-        return haystack.contains(needle);
+        // Three words is the floor. A real source sentence in this corpus is a
+        // `Subject predicate Object` triple, which is already three words, so the
+        // floor rejects only references that were never sentences.
+        if (tokensOf(needle).size() < MIN_GROUNDING_TOKENS) {
+            return false;
+        }
+        return containsPhrase(haystack, needle);
+    }
+
+    /**
+     * Whole-word containment.
+     *
+     * <p>Compares token sequences rather than the raw string, which gives
+     * word-boundary semantics for free: {@code "band"} cannot match inside
+     * {@code "abandoned"}, and {@code "of"} cannot match inside {@code "office"}.
+     * No regex, so punctuation in the sentence cannot produce a malformed
+     * pattern or, worse, a pattern that means something other than the sentence.
+     */
+    static boolean containsPhrase(String haystack, String needle) {
+        List<String> h = tokensOf(haystack);
+        List<String> n = tokensOf(needle);
+        if (n.isEmpty() || n.size() > h.size()) {
+            return false;
+        }
+        outer:
+        for (int i = 0; i + n.size() <= h.size(); i++) {
+            for (int j = 0; j < n.size(); j++) {
+                if (!h.get(i + j).equals(n.get(j))) {
+                    continue outer;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Lowercased alphanumeric words, which is the unit both the document and the
+     * reference are compared in.
+     *
+     * <p>Splitting on non-alphanumerics means punctuation differences between the
+     * document and the model's quotation are irrelevant, which is the point: the
+     * check is about whether the words are there, not about the formatting.
+     */
+    static List<String> tokensOf(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(collapse(value).split("[^a-z0-9]+"))
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     static String collapse(String value) {
