@@ -112,6 +112,15 @@ if (-not $Username) {
 }
 
 Say "signing in as $Username" 'Cyan'
+# Checked before the request, not after. Without this the server answers an empty
+# password with a 400, PowerShell surfaces it as a bare WebException, and the
+# script then falls through to the role check and reports "This account is ." --
+# blaming the account for a credential the caller never supplied.
+if ([string]::IsNullOrWhiteSpace($Password)) {
+  Say 'no -Password supplied, so the sign-in cannot succeed.' 'Red'
+  Say 'Pass -Password for the account named by -Username.' 'Red'
+  exit 2
+}
 $login = Invoke-RestMethod -Method Post -Uri "$Base/api/auth/login" -ContentType 'application/json' `
   -Body (@{ username = $Username; password = $Password } | ConvertTo-Json) -TimeoutSec 30
 $headers = @{ Authorization = "Bearer $($login.accessToken)" }
