@@ -37,8 +37,21 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "retrieval_evaluation",
-        indexes = @Index(name = "ix_reval_corpus", columnList = "corpus_id"))
+        indexes = {
+                @Index(name = "ix_reval_corpus", columnList = "corpus_id"),
+                @Index(name = "ix_reval_run", columnList = "corpus_id, run_key")
+        })
 public class RetrievalEvaluation {
+
+    /**
+     * Run key used for rows written before runs were distinguished.
+     *
+     * <p>Those rows came from ad-hoc measurements with no common gold set, so
+     * they cannot be attributed to a run. They are grouped under one literal
+     * rather than a hash, which makes them obviously synthetic, and because
+     * the summary reads only the newest run they cannot contaminate anything.
+     */
+    public static final String LEGACY_RUN_KEY = "LEGACY";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,6 +60,28 @@ public class RetrievalEvaluation {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "corpus_id", nullable = false)
     private Corpus corpus;
+
+    /**
+     * Identifies the benchmark run this row belongs to: the SHA-256 of the
+     * canonicalised gold set.
+     *
+     * <p>Deterministic rather than a random id, and that is the point. Re-running
+     * the same gold set produces the same key, so the run replaces itself instead
+     * of adding to the previous measurement. A benchmark you cannot run twice and
+     * get the same number is not a benchmark.
+     */
+    @Column(name = "run_key", nullable = false, length = 64, columnDefinition = "char(64)")
+    private String runKey;
+
+    /**
+     * Which {@link QueryExpander} table produced these rows.
+     *
+     * <p>Recorded so a metric is attributable to a retriever configuration and not
+     * only to a corpus. Without it, two runs of the same gold set against the same
+     * documents differ for reasons the numbers cannot explain.
+     */
+    @Column(name = "expander_version", nullable = false, length = 32)
+    private String expanderVersion;
 
     /** The query as issued, so the measurement can be repeated exactly. */
     @Column(name = "query_text", nullable = false, length = 500)
@@ -101,9 +136,12 @@ public class RetrievalEvaluation {
         // for JPA
     }
 
-    public RetrievalEvaluation(Corpus corpus, String queryText, Long goldChunkId,
+    public RetrievalEvaluation(Corpus corpus, String runKey, String expanderVersion,
+                               String queryText, Long goldChunkId,
                                Integer retrievedRank, BigDecimal score, boolean hasGold) {
         this.corpus = corpus;
+        this.runKey = runKey;
+        this.expanderVersion = expanderVersion;
         this.queryText = queryText;
         this.goldChunkId = goldChunkId;
         this.retrievedRank = retrievedRank;
@@ -125,6 +163,14 @@ public class RetrievalEvaluation {
 
     public Corpus getCorpus() {
         return corpus;
+    }
+
+    public String getRunKey() {
+        return runKey;
+    }
+
+    public String getExpanderVersion() {
+        return expanderVersion;
     }
 
     public String getQueryText() {

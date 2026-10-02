@@ -76,11 +76,27 @@ public class RetrievalService {
             int rank) {
     }
 
+    /**
+     * @param expansionVersion which {@link QueryExpander} mapping table produced
+     *                         {@code normalizedQuery}; scores are not comparable
+     *                         across versions
+     * @param expansionApplied surface form to corpus token, empty when nothing
+     *                         needed expanding
+     */
     public record RetrievalResult(List<RetrievedPassage> passages, String normalizedQuery,
-                                  boolean empty, int candidateCount) {
+                                  boolean empty, int candidateCount,
+                                  String expansionVersion, Map<String, String> expansionApplied) {
 
         public boolean hasEvidence() {
             return !passages.isEmpty();
+        }
+
+        /** Human-readable record of the expansion, for the Glass Box. */
+        public String expansionSummary() {
+            if (expansionApplied.isEmpty()) {
+                return expansionVersion + ": no expansion applied";
+            }
+            return expansionVersion + ": " + expansionApplied;
         }
     }
 
@@ -91,9 +107,11 @@ public class RetrievalService {
      */
     @Transactional(readOnly = true)
     public RetrievalResult retrieve(Long corpusId, String rawQuery) {
-        String normalized = buildFulltextQuery(rawQuery);
+        QueryExpander.Expansion expansion = QueryExpander.expand(queryTokens(rawQuery), MAX_TERMS);
+        String normalized = expansion.fulltextQuery();
         if (normalized.isBlank()) {
-            return new RetrievalResult(List.of(), "", true, 0);
+            return new RetrievalResult(List.of(), "", true, 0,
+                    QueryExpander.VERSION, Map.of());
         }
 
         // Over-fetch a little so the min-score filter has material to work on.
@@ -147,76 +165,110 @@ public class RetrievalService {
                 break;
             }
         }
-        return new RetrievalResult(List.copyOf(passages), normalized, passages.isEmpty(), rows.size());
+        return new RetrievalResult(List.copyOf(passages), normalized, passages.isEmpty(), rows.size(),
+                expansion.version(), expansion.applied());
     }
 
     /**
      * Builds a MySQL fulltext query string from free text.
      *
-     * <p>Each keyword is emitted as {@code +word} so all terms are required
-     * (boolean AND). Using OR would rank a passage matching one common word
-     * above a passage matching all of them.
+     * <p><b>The query is a bag of words, not a boolean AND.</b> This used to be
+     * documented as {@code +word} making every term required, and that is not
+     * what the database does: the retriever issues {@code AGAINST (... IN
+     * NATURAL LANGUAGE MODE)}, and in that mode MySQL ignores boolean syntax.
+     * Measured on the demo corpus, {@code +calder +collaborate} and
+     * {@code calder collaborate} both score 0.8827 on the same chunk, and
+     * {@code (+a OR +b)} scores identically to {@code +a +b}. So the {@code +}
+     * prefixes are inert, and the {@code +} is kept only because it is the
+     * established form and removing it would change nothing measurable.
+     *
+     * <p>That matters for anyone reasoning about this code. A comment promising
+     * required terms would lead a future change to believe it could narrow a
+     * query by adding a term, when in fact adding a term adds a relevance signal
+     * and can admit documents that match it. {@link QueryExpander} documents the
+     * same fact from the other side.
      *
      * <p>MySQL fulltext has a hard minimum token length (default 3 for InnoDB
      * with {@code innodb_ft_min_token_size=3}); shorter terms are dropped here
      * rather than being silently ignored at query time, which would make the
      * result look arbitrary.
+     *
+     * @deprecated in favour of {@link QueryExpander#expand}, which is what the
+     *             retriever actually calls. Kept because chat and the Skeptic
+     *             brief surface the plain query text.
      */
     public static String buildFulltextQuery(String rawQuery) {
+        StringBuilder sb = new StringBuilder();
+        for (String token : queryTokens(rawQuery)) {
+            if (sb.length() > 0) {
+                sb.append(' ');
+            }
+            sb.append('+').append(token);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Normalises free text into the keyword bag the query is built from.
+     *
+     * <p>Extracted so {@link QueryExpander} operates on exactly these tokens.
+     * If the expander normalised independently it could disagree with the base
+     * query about what a token is, and the two would silently disagree about
+     * what was searched for.
+     *
+     * @return lowercased alphanumeric tokens, stop words and short words removed,
+     *         capped at {@link #MAX_TERMS}
+     */
+    public static List<String> queryTokens(String rawQuery) {
         if (rawQuery == null || rawQuery.isBlank()) {
-            return "";
+            return List.of();
         }
         String lowered = rawQuery.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9\\s]", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
-        StringBuilder sb = new StringBuilder();
+        List<String> tokens = new ArrayList<>();
         for (String token : lowered.split(" ")) {
-            if (token.length() < MIN_TERM_LENGTH) {
+            if (token.length() < MIN_TERM_LENGTH || STOP_TERMS.contains(token)) {
                 continue;
             }
-            if (STOP_TERMS.contains(token)) {
-                continue;
-            }
-            if (sb.length() > 0) {
-                sb.append(' ');
-            }
-            sb.append('+').append(token);
-            if (countTerms(sb) >= MAX_TERMS) {
+            tokens.add(token);
+            if (tokens.size() >= MAX_TERMS) {
                 break;
             }
         }
-        return sb.toString();
-    }
-
-    private static int countTerms(StringBuilder sb) {
-        int count = 0;
-        for (int i = 0; i < sb.length(); i++) {
-            if (sb.charAt(i) == '+') {
-                count++;
-            }
-        }
-        return count;
+        return tokens;
     }
 
     /** Retrieval diagnostics, for the trace and the evaluation harness. */
     public record RetrievalDiagnostics(String rawQuery, String fulltextQuery, int candidatesReturned,
-                                       int passagesKept, List<Long> chunkIds, String[] rejectedReasons) {
+                                       int passagesKept, List<Long> chunkIds, String[] rejectedReasons,
+                                       String expansionVersion, Map<String, String> expansionApplied) {
+
+        /** What the expansion did, for the trace and for evaluation diffing. */
+        public String expansionSummary() {
+            return expansionApplied.isEmpty()
+                    ? expansionVersion + ": no expansion applied"
+                    : expansionVersion + ": " + expansionApplied;
+        }
     }
 
     @Transactional(readOnly = true)
     public RetrievalDiagnostics diagnose(Long corpusId, String rawQuery) {
-        String normalized = buildFulltextQuery(rawQuery);
+        QueryExpander.Expansion expansion = QueryExpander.expand(queryTokens(rawQuery), MAX_TERMS);
+        String normalized = expansion.fulltextQuery();
         if (normalized.isBlank()) {
             return new RetrievalDiagnostics(rawQuery, "", 0, 0, List.of(),
-                    new String[]{"query contained no searchable keywords after normalisation"});
+                    new String[]{"query contained no searchable keywords after normalisation"},
+                    expansion.version(), expansion.applied());
         }
         List<Object[]> rows = chunks.fulltextIdsWithScore(corpusId, normalized,
                 Math.max(topK * 3, topK + 5));
         RetrievalResult result = retrieve(corpusId, rawQuery);
         return new RetrievalDiagnostics(rawQuery, normalized, rows.size(), result.passages().size(),
                 result.passages().stream().map(RetrievedPassage::chunkId).toList(),
-                rows.isEmpty() ? new String[]{"no chunk in this corpus matched the query terms"} : new String[0]);
+                rows.isEmpty() ? new String[]{"no chunk in this corpus matched the query terms"} : new String[0],
+                expansion.version(), expansion.applied());
     }
 
     private static double toDouble(Object value) {

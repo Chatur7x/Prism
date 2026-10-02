@@ -41,7 +41,8 @@ public class RetrievalEvaluationController {
     public record EvaluateRequest(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 100000) String goldSet) {
     }
 
-    public record RowResponse(Long id, String queryText, Long goldChunkId, Integer retrievedRank,
+    public record RowResponse(Long id, String runKey, String expanderVersion, String queryText,
+                              Long goldChunkId, Integer retrievedRank,
                               Double score, boolean recallAt1, boolean recallAt3, boolean recallAt5,
                               Double reciprocalRank, java.time.Instant createdAt) {
     }
@@ -75,15 +76,19 @@ public class RetrievalEvaluationController {
 
     @GetMapping("/rows")
     @PreAuthorize("hasAnyRole('VERIFIER','ADMIN')")
-    @Operation(summary = "Individual evaluation rows, newest first",
+    @Operation(summary = "Individual evaluation rows for one benchmark run",
             description = "Per-query rows rather than an aggregate, so a regression can be traced to "
-                    + "the query that caused it instead of only being observed as a number moving.")
+                    + "the query that caused it instead of only being observed as a number moving. "
+                    + "Defaults to the newest run, in gold-set order; pass runKey for an older one. "
+                    + "Every row is stamped with the expansion version that produced it, so a figure "
+                    + "is attributable to a retriever configuration and not only to a corpus.")
     public List<RowResponse> rows(@RequestParam Long corpusId,
-                                  @RequestParam(defaultValue = "100") int limit) {
+                                  @RequestParam(required = false) String runKey) {
         Long userId = access.requireCurrentUserId();
         access.requireVerifier(userId);
-        return service.recent(corpusId, userId, limit).stream()
-                .map(e -> new RowResponse(e.getId(), e.getQueryText(), e.getGoldChunkId(),
+        return service.runRows(corpusId, userId, runKey).stream()
+                .map(e -> new RowResponse(e.getId(), e.getRunKey(), e.getExpanderVersion(),
+                        e.getQueryText(), e.getGoldChunkId(),
                         e.getRetrievedRank(),
                         e.getScore() == null ? null : e.getScore().doubleValue(),
                         e.isRecallAt1(), e.isRecallAt3(), e.isRecallAt5(),

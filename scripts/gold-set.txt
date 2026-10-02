@@ -1,0 +1,37 @@
+# PRISM retrieval gold set
+#
+# Format: `query = goldChunkId`, one per line. The parser splits on the LAST `=`,
+# so a query may contain one itself.
+#
+# Every gold chunk id was chosen by reading the chunk and confirming it is the
+# passage a person answering the question would need. None was picked by looking
+# at what the retriever returned, which is the only way a gold set stays honest.
+#
+# Categories are recorded for the write-up, not parsed.
+#
+# --- baseline, 11 queries, hand-checked against the demo corpus -------------
+#
+# category                 query                                        gold
+# exact entity lookup      Where is the Calder site located              = 14
+# exact entity lookup      Who operates the Corvale site                 = 14
+# relation lookup          Which organisation does Aster Labs report to  = 12
+# relation lookup          Who is the parent organisation of Aster Labs  = 12
+# synonym                  Which organisation owns Vantage Materials     = 18
+# synonym                  Vantage Materials parent organisation         = 18
+# relation lookup          Who does Orion Systems supply                 = 12
+# relation lookup          Who does Orion Systems compete with           = 9
+# synonym                  Who does Calder collaborate with              = 20
+# unsupported question     Who funds joint research in two areas         = 20
+# multi-hop graph question Who operates the shared services migration programme = 74
+
+Where is the Calder site located = 14
+Who operates the Corvale site = 14
+Which organisation does Aster Labs report to = 12
+Who is the parent organisation of Aster Labs = 12
+Which organisation owns Vantage Materials = 18
+Vantage Materials parent organisation = 18
+Who does Orion Systems supply = 12
+Who does Orion Systems compete with = 9
+Who does Calder collaborate with = 20
+Who funds joint research in two areas = 20
+Who operates the shared services migration programme = 74
