@@ -106,8 +106,11 @@ public class RecoveryService implements ApplicationRunner {
                 pipeline.runJob(job.getId(), job.getDocument().getId());
             } else {
                 // No document to work on: nothing can be requeued, so fail it
-                // rather than leaving it RUNNING forever.
-                job.markFailed("orphaned by a restart with no associated document", Instant.now());
+                // terminally rather than leaving it RUNNING forever — and rather
+                // than returning it to PENDING, where a worker would claim it
+                // and burn attempts on work that can never succeed.
+                job.markUnrecoverable("orphaned by a restart with no associated document",
+                        Instant.now());
                 jobs.save(job);
             }
         }

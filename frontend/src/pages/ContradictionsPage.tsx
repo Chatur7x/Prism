@@ -235,9 +235,9 @@ export function ContradictionsPage() {
         )}
       </Card>
 
-      {debates.data && debates.data.total > 0 && (
+      {debates.data && debates.data.totalElements > 0 && (
         <div style={{ marginTop: 'var(--space-4)' }}>
-          <Card title={`Councils (${debates.data.total})`} flush>
+          <Card title={`Councils (${debates.data.totalElements})`} flush>
             <div className="table-wrap">
               <table className="data">
                 <thead>

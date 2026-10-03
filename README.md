@@ -163,13 +163,17 @@ when it is the first thing to touch the API — which makes it a flaky test rath
 than a reliable one.
 
 ```bash
-cd backend && mvn test      # 205 tests, 0 skipped
+cd backend && mvn test      # 248 tests, 0 skipped
 cd frontend && npm run build
 
 # 31-check security probe, including cross-corpus authorization
 powershell -File scripts/security-probe.ps1 -OwnerUsername <u>
 
-# 20-endpoint contract check: live JSON against frontend/src/api/types.ts,
+# 127-check authorization sweep: every protected resource, cross-user and
+# cross-corpus, direct IDs and indirect access
+powershell -File scripts/auth-sweep.ps1 -OwnerUsername <u> -OwnerPassword '<p>'
+
+# 22-endpoint contract check: live JSON against frontend/src/api/types.ts,
 # in both directions, plus the page envelope
 powershell -File scripts/contract-check.ps1 -Username <u>
 
@@ -179,9 +183,9 @@ powershell -File scripts/llm-eval.ps1 -Username <v> -Password '<p>' \
   -CorpusId <prose> -Dataset prose
 ```
 
-All 205 backend tests run, including the 11 schema and migration integration tests
-against a real MySQL container. Nothing is skipped and nothing is counted green
-for having not executed.
+All 248 backend tests run, including 27 integration tests against real MySQL
+containers (11 schema/migration, 10 restart-recovery, 6 Glass Box replay). Nothing is skipped and nothing is counted
+green for having not executed.
 
 ---
 
@@ -218,26 +222,39 @@ on prose it finds 14 incidental occurrences of a predicate word and gets every o
 wrong. That is the concrete demonstration that the canonical corpus was flattering
 the fixture.
 
-Also closed this pass, and previously open:
+Also closed, and previously open:
 
+- **Failure recovery above the provider layer.** Restart requeue with attempts
+  preserved, stale-run surfacing, duplicate extraction/approval/convene/start,
+  and concurrent advance with exactly one winner. Found and fixed a real bug:
+  orphaned jobs without a document looped PENDING forever instead of failing
+  terminally.
+- **Provenance and Glass Box replay.** A live ID-chain walk
+  (`docs/provenance-walk.md`) plus replay tests proving stored snapshots survive
+  domain mutation. Found and fixed a 500 on every verdict detail, and added the
+  `GET /api/debates` list two pages called but which did not exist.
+- **Full authorization sweep.** 127 checks across all twelve protected
+  resources, cross-user and cross-corpus, direct and indirect — no leaks.
+- **Prompt-injection coverage** extended to verification, debate, synthesis and
+  chat (21 tests), plus an escaped LIKE-wildcard fix in chat lookup.
 - **Automated schema contract check.** `SchemaContractChecker` flags an unmapped
-  `NOT NULL` column with no default — the defect that shipped for the whole life of
-  the project and was only ever found by a runtime error — along with missing
+  `NOT NULL` column with no default - the defect that shipped for the whole life of
+  the project and was only ever found by a runtime error - along with missing
   mapped columns and tables, missing critical indexes, and missing critical foreign
   keys. A test recreates the real defect and proves the check fails.
 - **One collection envelope.** Three different response shapes existed for one
   concept. Unifying them exposed a live bug: the admin page was typed against a
   bare array while the server returned a page object, so it rendered "No users"
   for every account while the contract check reported clean.
-- **Performance baseline** in [`docs/performance.md`](docs/performance.md) — a
+- **Performance baseline** in [`docs/performance.md`](docs/performance.md) - a
   baseline on one laptop, explicitly not a scalability claim, and containing no
   model latency because no model has been evaluated.
+- **`docs/api.md` regenerated** from the live spec (74 operations, 66 paths).
 
-Still not done, and recorded rather than glossed: the full per-resource
-cross-user/cross-corpus authorization sweep, the provenance and Glass Box replay
-audits, the untested recovery scenarios (database interruption, restart during
-extraction or synthesis, duplicate submission, concurrent debate advance), and the
-30-step browser journey.
+Still not done, and recorded rather than glossed: a real browser with a
+connected devtools session (console-error and screenshot evidence remain
+not-tested; the journey was run as an HTTP walk plus source verification), and
+the clean-checkout release check below.
 
 [`docs/limitations.md`](docs/limitations.md) is the authoritative list, including
 a phase-by-phase table of what has not been reached. See

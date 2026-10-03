@@ -152,7 +152,9 @@ $cases = @(
 $PageEnvelope = @('content', 'page', 'size', 'totalElements', 'totalPages', 'hasNext')
 $pageCases = @(
   @{ label = 'documents page';    uri = "$Base/api/documents?corpusId=${cid}&size=5" },
-  @{ label = 'admin users page'; uri = "$Base/api/admin/users?page=0&size=5" }
+  @{ label = 'admin users page'; uri = "$Base/api/admin/users?page=0&size=5" },
+  @{ label = 'traces page';      uri = "$Base/api/traces?corpusId=${cid}&size=5" },
+  @{ label = 'debates page';     uri = "$Base/api/debates?corpusId=${cid}&size=5" }
 )
 if ($docId -gt 0) {
   $pageCases += @{ label = 'quarantine page'; uri = "$Base/api/documents/${docId}/quarantine?size=5" }
@@ -198,6 +200,28 @@ if ($traceRow.Count -gt 0 -and $null -ne $traceRow[0] -and $traceRow[0].id) {
     @{ label = 'trace detail';      uri = "$Base/api/traces/${tid}";                                      ts = 'TraceRunDetail' },
     @{ label = 'trace x-ray';       uri = "$Base/api/traces/${tid}/xray";                                 ts = 'XRayView' }
   )
+}
+
+# Verdict detail carries the evidence passages, which the list omits -- and the
+# passage mapping is what 500'd on every verdict until the endpoint ran inside a
+# transaction (LazyInitializationException on the chunk's document proxy). The
+# list passing while detail 500s is exactly the gap this case closes.
+$verdictPage = Invoke-Api -Uri "$Base/api/verdicts?corpusId=${cid}&size=5" -Headers $h
+$verdictRow = @()
+if ($verdictPage -and ($verdictPage.PSObject.Properties.Name -contains 'content')) {
+  $verdictRow = @($verdictPage.content | Select-Object -First 1)
+}
+if ($verdictRow.Count -gt 0 -and $null -ne $verdictRow[0] -and $verdictRow[0].id) {
+  $vid = $verdictRow[0].id
+  $cases += @(
+    @{ label = 'verdict detail';    uri = "$Base/api/verdicts/${vid}";                                    ts = 'Verdict' }
+  )
+} else {
+  # Said out loud rather than implied: without a verdict in this corpus the
+  # detail endpoint is never exercised, and a clean run must not be read as
+  # covering it.
+  $script:Info++
+  Say '  skip  verdict detail       no verdicts in this corpus; detail unexercised' 'DarkGray'
 }
 
 Write-Host ''

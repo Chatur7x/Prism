@@ -83,7 +83,7 @@ export function GlassBoxPage() {
 
       {traces.data && (
         <div className="grid cols-3" style={{ marginBottom: 'var(--space-4)' }}>
-          <Stat label="Trace runs" value={traces.data.total} accent />
+          <Stat label="Trace runs" value={traces.data.totalElements} accent />
           <Stat label="Failed runs" value={failed} hint={failed > 0 ? 'each is inspectable' : 'none'} />
           <Stat
             label="Distinct operations"
@@ -113,13 +113,13 @@ export function GlassBoxPage() {
 
       <Card title={`Runs (${rows.length})`} flush>
         {traces.loading && <Loading />}
-        {traces.data && traces.data.total === 0 && (
+        {traces.data && traces.data.totalElements === 0 && (
           <Empty title="No traces yet">
             Run an operation — upload a document, verify a claim, or ask a question — and it will
             appear here with its full step-by-step record.
           </Empty>
         )}
-        {rows.length === 0 && traces.data && traces.data.total > 0 && (
+        {rows.length === 0 && traces.data && traces.data.totalElements > 0 && (
           <Empty title="No runs of this operation" />
         )}
         {rows.length > 0 && (

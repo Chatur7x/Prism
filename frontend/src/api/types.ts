@@ -508,7 +508,7 @@ export interface Debate {
   currentRound: number
   maxRounds: number
   topic: string
-  chair: string
+  chair?: string
   createdAt: string
   startedAt?: string
   finishedAt?: string
@@ -516,11 +516,13 @@ export interface Debate {
   rounds: DebateRound[]
 }
 
-export interface DebatePage {
-  total: number
-  size: number
-  content: Debate[]
-}
+/**
+ * Alias for the shared collection envelope. This was its own
+ * `{total, size, content}` shape while the server returned a bare array, then
+ * nothing at all (404, no list endpoint). Now both sides use the envelope;
+ * the two `.total` reads this alias once broke are `.totalElements`.
+ */
+export type DebatePage = PageResponse<Debate>
 
 /**
  * The published debate state machine.
@@ -693,9 +695,14 @@ export interface TraceStepView {
 export interface TraceRunSummary {
   id: number
   corpusId: number
+  documentId?: number
   operationType: string
   status: string
   operationKey: string
+  /**
+   * Which actor types appear in the run, e.g. "ENGINE+LLM". Computed server-side
+   * from the stored steps. Absent when the run has no steps yet.
+   */
   actorSummary?: string
   startedAt: string
   finishedAt?: string
@@ -704,12 +711,14 @@ export interface TraceRunSummary {
   stepCount: number
 }
 
-export interface TraceRunPage {
-  page: number
-  total: number
-  size: number
-  content: TraceRunSummary[]
-}
+/**
+ * Alias for the shared collection envelope. This was its own
+ * `{page, total, size, content}` shape, and its `TraceRunSummary` declared an
+ * `actorSummary` the server never sent — so the Glass Box list rendered a
+ * permanent "-" in the Actors column. Both fixed: the envelope is shared and
+ * the server now computes the summary from the stored steps.
+ */
+export type TraceRunPage = PageResponse<TraceRunSummary>
 
 /**
  * A trace run with its full step DAG.

@@ -11,6 +11,17 @@ public interface TraceStepRepository extends JpaRepository<TraceStep, Long> {
 
     List<TraceStep> findByRunIdOrderBySeqAsc(Long runId);
 
+    /**
+     * Distinct actor types per run, for the Glass Box list's Actors column.
+     *
+     * <p>One query for the whole page rather than one per run. The column used
+     * to be fed by a field the server never sent, so it rendered "-" for every
+     * run while looking like it worked.
+     */
+    @Query("SELECT s.run.id, s.actorType FROM TraceStep s WHERE s.run.id IN :runIds "
+            + "GROUP BY s.run.id, s.actorType")
+    List<Object[]> findActorTypesByRunIds(@Param("runIds") List<Long> runIds);
+
     Optional<TraceStep> findByIdAndRunId(Long stepId, Long runId);
 
     /**

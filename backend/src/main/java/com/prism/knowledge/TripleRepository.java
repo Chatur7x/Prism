@@ -97,7 +97,8 @@ public interface TripleRepository extends JpaRepository<Triple, Long> {
 
     @Query("select t from Triple t join fetch t.subjectEntity join fetch t.objectEntity "
             + "where t.corpus.id = :corpusId and t.status = 'APPROVED' "
-            + "and (lower(t.subject) like :needle or lower(t.object) like :needle) "
+            + "and (lower(t.subject) like :needle escape '\\' "
+            + "or lower(t.object) like :needle escape '\\') "
             + "order by t.subject, t.predicate, t.object")
     List<Triple> searchApprovedText(@Param("corpusId") Long corpusId, @Param("needle") String needle,
                                     Pageable pageable);

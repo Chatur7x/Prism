@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -185,6 +186,7 @@ public class VerificationController {
 
     @GetMapping("/verdicts/{id}")
     @Operation(summary = "Fetch one verdict with its evidence passages")
+    @Transactional(readOnly = true)
     public VerdictResponse getVerdict(@PathVariable Long id) {
         Long userId = access.requireCurrentUserId();
         Verdict verdict = verdicts.findById(id)
@@ -202,6 +204,7 @@ public class VerificationController {
     @PostMapping("/verdicts/{id}/adjudicate")
     @PreAuthorize("hasAnyRole('VERIFIER','ADMIN')")
     @Operation(summary = "Record a human decision. The machine verdict is preserved, never overwritten.")
+    @Transactional
     public VerdictResponse adjudicate(@PathVariable Long id, @Valid @RequestBody AdjudicateRequest request) {
         Long userId = access.requireCurrentUserId();
         Verdict verdict = verdicts.findById(id)

@@ -159,8 +159,7 @@ public class BackgroundJob {
      * Records a failure. The job returns to PENDING for another attempt until
      * the ceiling is reached, after which it is ABANDONED and needs a human.
      */
-    public void markFailed(String error, Instant now) {
-        this.lastError = truncate(error);
+    public void markFailed(String error, Instant now) {        this.lastError = truncate(error);
         this.updatedAt = now;
         this.heartbeatAt = now;
         if (attemptCount >= maxAttempts) {
@@ -169,6 +168,25 @@ public class BackgroundJob {
         } else {
             this.status = Status.PENDING;
         }
+    }
+
+    /**
+     * Marks the job terminally failed, regardless of remaining attempts.
+     *
+     * <p>For work that can never succeed no matter how often it is retried — a
+     * job orphaned by a restart with no associated document. Routing it through
+     * {@link #markFailed} would return it to PENDING (attempts remain), where a
+     * worker would claim it, fail to find the document, and fail it back to
+     * PENDING in a loop that only ends at ABANDONED after burning every
+     * attempt on nothing. FAILED keeps it visible for a human without spending
+     * attempts pretending it might work.
+     */
+    public void markUnrecoverable(String error, Instant now) {
+        this.lastError = truncate(error);
+        this.status = Status.FAILED;
+        this.finishedAt = now;
+        this.heartbeatAt = now;
+        this.updatedAt = now;
     }
 
     /**

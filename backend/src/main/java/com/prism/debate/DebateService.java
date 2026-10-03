@@ -414,6 +414,23 @@ public class DebateService {
         return debates.findByContradictionId(contradictionId);
     }
 
+    /**
+     * Debates in a corpus, newest first.
+     *
+     * <p>Exists because two pages call {@code GET /api/debates} and the endpoint
+     * did not exist: the Contradictions page hid its Councils section and the
+     * Reports page showed an error banner, both while the API returned 404 for
+     * a route the frontend reasonably expected to exist.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<Debate> list(Long userId, Long corpusId,
+                                                             int page, int size) {
+        access.requireAccessible(corpusId, userId);
+        return debates.findByCorpusIdOrderByCreatedAtDesc(corpusId,
+                org.springframework.data.domain.PageRequest.of(Math.max(page, 0),
+                        Math.min(Math.max(size, 1), 200)));
+    }
+
     @Transactional(readOnly = true)
     public List<Argument> argumentsOf(Long debateId) {
         return arguments.findByDebateIdOrderByDebateRoundIdAscIdAsc(debateId);

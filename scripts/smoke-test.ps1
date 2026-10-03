@@ -332,7 +332,7 @@ try {
 Step "Glass Box exposes the trace DAG"
 try {
   $traces = Invoke-RestMethod -Uri "$Base/api/traces?corpusId=${corpusId}&size=50" -Headers $headers -TimeoutSec 20
-  Check "trace runs listed" ($traces.total -gt 0) "total=$($traces.total)"
+  Check "trace runs listed" ($traces.totalElements -gt 0) "totalElements=$($traces.totalElements)"
 
   # The x-ray must separate the three actors. Assert this against a trace that
   # actually involved a model call, not whichever run the list returns first:

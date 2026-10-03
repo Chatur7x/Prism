@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -48,6 +49,22 @@ public class DebateController {
     public record WeightRequest(
             @NotNull @Min(DebateEngine.MIN_WEIGHT) @Max(DebateEngine.MAX_WEIGHT) Integer weight,
             @Size(max = 1000) String note) {
+    }
+
+    @GetMapping
+    @Operation(summary = "List debates in a corpus, newest first")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public com.prism.common.PageResponse<DebateResponseAssembler.DebateResponse> list(
+            @RequestParam Long corpusId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Long userId = access.requireCurrentUserId();
+        var result = debates.list(userId, corpusId, page, size);
+        // List rows carry no rounds or arguments; the detail endpoint does.
+        // Assembling with empty collections keeps one response shape everywhere.
+        return com.prism.common.PageResponse.of(result.map(debate ->
+                DebateResponseAssembler.assemble(debate, List.of(), Map.of(), Map.of(),
+                        Map.of(), Map.of())));
     }
 
 

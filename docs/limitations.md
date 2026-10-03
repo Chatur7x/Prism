@@ -342,6 +342,18 @@ Fixed:
   is precisely why `/api/documents` had none.
 - The quarantine listing is a typed `QuarantineRow` record rather than a map built
   from string literals.
+- The traces list joined the envelope and gained a real Actors column. The Glass
+  Box list rendered a permanent "-" from a field the server never sent; the
+  server now computes `actorSummary` (e.g. `ENGINE+LLM`) from the stored steps
+  in one grouped query.
+- A new `GET /api/debates` list both the Contradictions and Reports pages
+  called but which did not exist. The former hid its Councils section, the
+  latter showed an error banner, both on a 404. It returns the shared envelope
+  of debate responses without rounds or arguments; detail still carries those.
+- `GET /api/verdicts/{id}` 500'd on every verdict (`LazyInitializationException`
+  on the passage's document proxy). Detail and adjudication now run inside a
+  transaction, and the contract check gained a verdict-detail case — the case
+  the list-passing/detail-500 gap required.
 
 **The admin page was broken by this and nobody noticed.** `AdminPage` called
 `adminApi.users()`, typed it `UserSummary[]`, and rendered `users.data.length`
@@ -354,12 +366,12 @@ run reports `skip` rather than six missing fields.
 
 Still untyped, and therefore still documented only as `object`: chat session
 detail, chat answer, verify-all, the approval queue, triples/claims/verdicts/
-contradictions/traces list responses, the trace detail and X-Ray views, argument
+contradictions list responses, the trace detail and X-Ray views, argument
 weighting, synthesis receipts, the debate FSM, and admin status. The frontend
 types for these are verified against live JSON by the contract check, so they are
-known correct today — but they are not enforced by a schema, and a backend change
-would not be caught by the compiler. `docs/api.md` has not been regenerated from
-the live schema.
+known correct today - but they are not enforced by a schema, and a backend change
+would not be caught by the compiler. `docs/api.md` is regenerated from the live
+spec (74 operations, 66 paths), with each remaining untyped endpoint marked.
 
 Spring Data's `Page` is deliberately never exposed. Its serialisation is unstable
 across versions and carries an internal `pageable` object, so a client binding to
@@ -416,23 +428,24 @@ Everything below is classified; nothing here is assumed.
 | 6 - database contract audit | **Done this pass.** `SchemaContractChecker` compares the live schema against the JPA metamodel and flags an unmapped NOT NULL column with no default, a missing mapped column or table, a missing critical index and a missing critical foreign key. `contractCheckDetectsTheHistoricalDefect` recreates the real defect — a `NOT NULL` column with no default on `report_block_citations` — and proves the check fails. 29 tables, 374 columns, 364 mapped, 0 failures on the real schema. Flyway remains authoritative; Hibernate schema generation is still not used. |
 | 7 - authentication hardening | **Decided and documented** (§5). |
 | 8 - SSE review | **Not done** (§6). |
-| 9 - security penetration pass | **Partly.** 31 checks in `scripts/security-probe.ps1`; it found a cross-corpus data leak, now fixed. **Not done this pass:** the full per-resource cross-user and cross-corpus sweep across document, chunk, entity, triple, claim, verdict, contradiction, debate, report, chat session, trace run and trace step, including indirect access through search, retrieval, pagination and nested references. |
-| 10 - prompt injection tests | **Partly.** Deterministic layer done (`PromptInjectionTest`, 9 tests) and the prose gold set now carries labelled injection bait — an instruction-shaped string and an instruction-shaped paraphrase, both labelled `expectNothing`, both asserted to yield no triple. **Not done:** coverage extended to verification, debate, Skeptic, synthesis and chat. Model-level susceptibility is unmeasured (§1). |
-| 11 - failure recovery | **Partly.** Provider timeout / 429 / 5xx / permanent-failure, retry bounds, backoff cap, and the malformed-response quarantine gate are tested (`LlmFailureRecoveryTest`, 10 tests; `MalformedResponseQuarantineTest`, 11 tests). **Not tested:** database interruption mid-work, application restart during extraction or synthesis, duplicate extraction, duplicate approval, duplicate debate start, and concurrent debate advance. `RecoveryService` handles stale jobs and extraction runs by heartbeat with in-place requeue; that was read, not verified by a test. |
-| 12 - provenance audit | **Not done.** No trace was walked end to end against stored records this pass. |
-| 13 - Glass Box audit | **Partly.** Found and fixed a trace-detail contract bug that made the Glass Box header render `Trace #undefined`. **Replay-reads-stored-data is still not verified**: the experiment of recording a trace, changing relevant state, and confirming the replay still shows the historical execution was not run. |
-| 14 - API contract audit | **Partly** (§7). 20 endpoints agree in both directions as a verifier, plus the three new envelope assertions; `docs/api.md` still not regenerated from the live schema. The two pagination-shape inconsistencies are **fixed**. The broader `Map`-to-DTO conversion is not done. |
-| 15 - frontend integration audit | **Partly.** 20 endpoints verified by contract check; typecheck and production build clean; the admin page bug was found and fixed by the shape audit. **Not done:** the 30-step browser journey covering loading, empty, success, error, 401, 403, 404 and network failure. |
+| 9 - security penetration pass | **Done.** 31 checks in `scripts/security-probe.ps1` (cross-corpus leak found and fixed) plus a full per-resource sweep in `scripts/auth-sweep.ps1`: **127 checks across documents, chunks, entities, triples, claims, verdicts, contradictions, debates, reports, chat sessions, trace runs and trace steps** — direct IDs, search/retrieval/pagination/nested references, invalid IDs, reverse direction, and error-body disclosure scans. **No leaks found.** Residual fixture rows per run (attacker user/corpus/document/session) are documented in the sweep report. |
+| 10 - prompt injection tests | **Done at the deterministic layer.** `PromptInjectionTest` (21 tests): extraction guards plus verification (rule penalty/fusion/judge output), debate weights, synthesis citations, chat grounding, and taxonomy non-conflation. The prose gold set carries labelled injection bait. One genuine low-severity finding fixed: unescaped LIKE wildcards in chat triple lookup (bounded, same-corpus). Model-level susceptibility is unmeasured (§1). |
+| 11 - failure recovery | **Done.** Provider timeout/429/5xx/permanent-failure, retry bounds, backoff cap, quarantine gate (existing) plus restart during extraction, duplicate extraction/approval/convene/start, concurrent debate advance, stale-run surfacing, and machine-verdict preservation (`RestartRecoveryIntegrationTest`, 10 integration tests; `RecoverySemanticsTest`, 12 unit tests). Found and fixed a real bug: orphaned jobs without a document looped PENDING forever instead of failing terminally. DB-interruption mid-write is covered by the transactional boundaries the tests pin (approval scan rolls back with the approval; synthesis is a single transaction), not by killing the database mid-test. |
+| 12 - provenance audit | **Done.** Full ID-chain walk against live stored records in `docs/provenance-walk.md`: approved triple 57 from document 18 through chunk 61 to graph edge (7→1), claim 114 through verdict 6 and trace 212 to contradiction 9, debate 2, report 2, and synthesis trace 352. Found and fixed a 500 on `GET /api/verdicts/{id}` (lazy proxy outside a session; endpoints now transactional) and added the missing `GET /api/debates` list both pages called. No quarantined item and no human adjudication existed live, so those two hops are recorded as not-observed rather than assumed. |
+| 13 - Glass Box audit | **Done.** `GlassBoxReplayIntegrationTest` (6 tests): replay shows stored snapshots after domain mutation, parent/child links with database-allocated seq ordering, actor/model/prompt/rule metadata round-trip, error recording with a secrets scan, structural no-chain-of-thought assertion over entity fields and `StepView` components, and run lifecycle. |
+| 14 - API contract audit | **Done.** 22 endpoints agree in both directions plus four envelope assertions (documents, admin users, traces, debates) and a verdict-detail case added after the 500. The pagination inconsistencies are fixed; the traces list gained a real Actors column (was a permanent "-"). `docs/api.md` regenerated from the live spec (74 operations, 66 paths). 23 endpoints remain untyped `Map` responses, each marked **Untyped** in `api.md`. |
+| 15 - frontend integration audit | **Partly.** Contract + typecheck + production build clean; admin-page and Councils-section shape bugs found and fixed. A real browser is not connected in this environment, so the 30-step journey was run as an HTTP walk plus source verification (`tsc` clean, all routes serve, every list has loading/empty/error states) — no crash found by any available method, but console-error and screenshot evidence remain **not-tested**. Two findings fixed from it: the missing debates endpoint and the verifier blank admin page (now an `AccessDenied` message). |
 | 16 - performance baseline | **Done this pass**, as a baseline only. See [`performance.md`](performance.md). No figure in it includes model latency, because no model has been evaluated. |
-| 17 - documentation | This file, plus `README.md`, `evaluation.md`, `performance.md`. `api.md` and `architecture.md` not updated. |
+| 17 - documentation | This file, plus `README.md`, `evaluation.md`, `performance.md`, `provenance-walk.md`. `api.md` regenerated from the live spec (74 operations, 66 paths; 23 endpoints marked **Untyped**); `architecture.md` updated for the envelope, the schema checker, and the prose harness. |
 | 18 - final demo validation | **Done.** Corpus rebuilt from empty: 24 documents, 87 chunks, 58 triples approved, 6 verdicts, 10 contradictions, all 5 planted contradictions detected. |
-| 19 - clean-checkout release check | **Not done this pass.** The working tree is clean and every check below was run against it, but not from a fresh clone. |
+| 19 - clean-checkout release check | **Not done yet at this writing.** The working tree is clean and every check below was run against it, but not from a fresh clone. Runs before the release decision below. |
 | 20 - release decision | Reached. **NOT RELEASE CANDIDATE**, on §1 alone: `REAL_MODEL_EVALUATION_PENDING`. |
 
 ---
 
 ## 10. Standing constraints
 
+These are properties of the system, not gaps. They are listed so a reader does
 not have to infer them from the code.
 
 - **`fusedScore` is a ranking score, not a calibrated probability.** It orders

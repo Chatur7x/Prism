@@ -49,9 +49,15 @@ public class TraceController {
      * message. Both matter: the step says which operation failed, this says why
      * the run as a whole ended the way it did, and it is the only reason visible
      * without opening every step.
+     *
+     * <p>{@code actorSummary} names which actor types appear in the run, e.g.
+     * {@code "ENGINE+LLM"}. It is computed from the stored steps, so it
+     * describes the execution that happened rather than the actors that could
+     * have participated.
      */
     public record RunSummary(Long id, TraceOperationType operationType, Long corpusId, Long documentId,
-                             String status, String operationKey, Instant startedAt, Instant finishedAt,
+                             String status, String operationKey, String actorSummary,
+                             Instant startedAt, Instant finishedAt,
                              Long durationMs, String errorMessage, long stepCount) {
     }
 
@@ -66,9 +72,10 @@ public class TraceController {
 
     @GetMapping
     @Operation(summary = "List trace runs visible to the caller")
-    public Map<String, Object> list(@RequestParam(required = false) Long corpusId,
-                                    @RequestParam(defaultValue = "0") int page,
-                                    @RequestParam(defaultValue = "25") int size) {
+    public com.prism.common.PageResponse<RunSummary> list(
+            @RequestParam(required = false) Long corpusId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
         Long userId = access.requireCurrentUserId();
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
 
@@ -78,6 +85,18 @@ public class TraceController {
         } else {
             access.requireAccessible(corpusId, userId);
             result = runs.findByCorpusIdOrderByStartedAtDesc(corpusId, pageable);
+        }
+
+        List<Long> runIds = result.getContent().stream().map(TraceRun::getId).toList();
+        // One query for the whole page rather than one per run. The Actors column
+        // used to be fed by a field the server never sent, so it rendered "-"
+        // for every run while looking like it worked.
+        Map<Long, java.util.EnumSet<ActorType>> actorsByRun = new LinkedHashMap<>();
+        if (!runIds.isEmpty()) {
+            for (Object[] row : steps.findActorTypesByRunIds(runIds)) {
+                actorsByRun.computeIfAbsent((Long) row[0],
+                        k -> java.util.EnumSet.noneOf(ActorType.class)).add((ActorType) row[1]);
+            }
         }
 
         List<RunSummary> rows = new ArrayList<>();
@@ -90,12 +109,19 @@ public class TraceController {
             rows.add(new RunSummary(run.getId(), run.getOperationType(),
                     run.getCorpus() == null ? null : run.getCorpus().getId(),
                     run.getDocument() == null ? null : run.getDocument().getId(),
-                    run.getStatus().name(), run.getOperationKey(), run.getStartedAt(),
+                    run.getStatus().name(), run.getOperationKey(),
+                    summarizeSet(actorsByRun.get(run.getId())),
+                    run.getStartedAt(),
                     run.getFinishedAt(), run.getDurationMs(), run.getErrorSummary(),
+                    // N+1 on counts, accepted deliberately: pages are at most 100
+                    // rows, counts are indexed, and batching them would trade a
+                    // simple loop for a GROUP BY whose shape the frontend does
+                    // not need. Revisit if the Glass Box list ever paginates
+                    // beyond that or the 1044 ms baseline regresses.
                     steps.countByRunId(run.getId())));
         }
-        return Map.of("content", rows, "total", result.getTotalElements(),
-                "page", result.getNumber(), "size", result.getSize());
+        return com.prism.common.PageResponse.of(rows, result.getNumber(), result.getSize(),
+                result.getTotalElements());
     }
 
     @GetMapping("/{id}")
@@ -128,11 +154,49 @@ public class TraceController {
         body.put("run", new RunSummary(run.getId(), run.getOperationType(),
                 run.getCorpus() == null ? null : run.getCorpus().getId(),
                 run.getDocument() == null ? null : run.getDocument().getId(),
-                run.getStatus().name(), run.getOperationKey(), run.getStartedAt(),
-                run.getFinishedAt(), run.getDurationMs(), run.getErrorSummary(), stepRows.size()));
+                run.getStatus().name(), run.getOperationKey(),
+                summarizeActors(steps.findActorTypesByRunIds(List.of(run.getId()))),
+                run.getStartedAt(), run.getFinishedAt(), run.getDurationMs(),
+                run.getErrorSummary(), stepRows.size()));
         body.put("metadata", run.getMetadataJson());
         body.put("steps", stepRows);
         return body;
+    }
+
+    /**
+     * Names which actor types appear in a run, e.g. {@code "ENGINE+LLM"}.
+     *
+     * <p>Joined in {@link ActorType} declaration order, so the summary is
+     * deterministic regardless of the order the database returns groups. Null
+     * when the run has no steps yet.
+     */
+    private static String summarizeActors(List<Object[]> rows) {
+        java.util.EnumSet<ActorType> set = java.util.EnumSet.noneOf(ActorType.class);
+        for (Object[] row : rows) {
+            set.add((ActorType) row[1]);
+        }
+        return summarizeSet(set);
+    }
+
+    /**
+     * Joins an actor set in {@link ActorType} declaration order. Null when
+     * empty, so a run with no steps yet carries no summary rather than an
+     * empty string that a client might render as a badge.
+     */
+    private static String summarizeSet(java.util.EnumSet<ActorType> set) {
+        if (set == null || set.isEmpty()) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder();
+        for (ActorType actor : ActorType.values()) {
+            if (set.contains(actor)) {
+                if (!out.isEmpty()) {
+                    out.append('+');
+                }
+                out.append(actor.name());
+            }
+        }
+        return out.toString();
     }
     @GetMapping("/{id}/steps")
     @Operation(summary = "Flat, ordered step list for a replay timeline")

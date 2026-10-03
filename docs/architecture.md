@@ -40,6 +40,13 @@ Controller  →  Service  →  Engine  →  Repository
 
 - **Controllers** hold no business logic. They authenticate, authorise, delegate,
   and map to a response record. A controller that decides something is a bug.
+  Collection endpoints that page return the one `PageResponse<T>` envelope
+  (`content, page, size, totalElements, totalPages, hasNext`) — currently
+  `GET /api/documents`, `GET /api/admin/users`, and
+  `GET /api/documents/{id}/quarantine` — rather than Spring Data's `Page`,
+  whose serialisation couples clients to Spring internals. The older
+  `{content, total, page, size}` map shape on the remaining list endpoints
+  predates it and is unmigrated, not a second standard.
 - **Services** orchestrate and own transactions.
 - **Engines** are deterministic, pure or near-pure, and unit-testable without a
   Spring context or a database: `ClaimRuleEngine`, `DebateEngine`,
@@ -340,8 +347,17 @@ those *require* an explicit `@JoinColumn` and have no convention to fall back on
 Run against the current schema, `report_block_citations.corpus_id` is the only
 real gap, and it is fixed.
 
-Making this an automated test needs the same working Testcontainers setup as the
-migration tests (see limitations) — the check requires a live schema.
+Making this a permanent check is now done: `SchemaContractChecker` runs the
+cross-check the manual query above describes — every `NOT NULL` column with no
+default against every entity mapping — plus mapped-but-missing tables and
+columns, missing critical indexes, and missing critical foreign keys. It reads
+the schema and never repairs it, so the same class backs the integration test
+(which recreates the historical `report_block_citations.corpus_id` defect and
+proves the check fails), a CI job, or an admin endpoint. Two subtleties it
+had to learn: join columns are not `BASIC` attributes, so a naive mapping scan
+reports every foreign key as unmapped (70 false positives on the real schema),
+and unannotated fields take their column names from the camelCase-to-snake_case
+naming strategy, without which correct mappings read as missing columns.
 
 ### Conventions
 
@@ -496,9 +512,12 @@ These are real and are not worked around silently.
 
 3. **`fusedScore` is uncalibrated.** See §5.
 
-4. **`retrieval_evaluation` has no entity or service.** The table exists from V4.
-   There is no Recall@1/3/5 or MRR evaluation, so retrieval quality is currently
-   unmeasured rather than measured-and-good.
+4. **Retrieval quality is measured, not assumed.** `RetrievalEvaluation` (entity,
+   service, repository, controller) records frozen-benchmark runs with Recall@1/3/5
+   and MRR. The frozen 11-query gold set is preserved; see `docs/evaluation.md`.
+   The remaining caveat is causal, not metrical: the rebuilt-corpus improvement
+   cannot be attributed purely to query expansion, because the before leg cannot
+   be reproduced without editing source.
 
 5. **The demo uses `LLM_PROVIDER=fake`.** The offline provider performs real
    parsing, validation, quarantine, and persistence — it is not a stub that
@@ -506,3 +525,37 @@ These are real and are not worked around silently.
    extraction heuristics only recognise a narrow sentence shape, so the demo
    corpus is written to that shape. A real provider is a configuration change,
    not a code change.
+
+---
+
+## 11. Measuring extraction from prose, without lying about it
+
+The canonical demo corpus states every fact as `Subject predicate Object`, so a
+provider scores near 100% by pattern matching and the number says nothing about
+extraction from a board minute. `ProseExtractionEvaluationService` is the
+separate harness for that question, against the hand-written prose gold set
+(`eval/prose-gold-v1.json`: 10 documents, 81 labelled sentences, 48 expecting
+nothing to be extracted, 40 expected triples, 46 expected claims).
+
+Three properties are load-bearing:
+
+- **Negatives.** 59% of the labelled sentences state that nothing should be
+  extracted, and precision is only observable there. The canonical harness has
+  no negatives, which is why this is a separate service rather than a flag on
+  it — one implementation with a branch would grow a code path only one
+  dataset ever exercises.
+- **Expectations are claimed, not broadcast.** An expectation belongs to a
+  sentence, and a sentence lives in one chunk, so each is handed to exactly one
+  chunk (anchored on the subject). Scattering a document's whole gold set
+  across all of its chunks counted one expected triple once per chunk, turning
+  a 40-triple gold set into 156 expected misses — a harness reporting a recall
+  it had manufactured.
+- **The harness refuses to fake a result.** With `requireRealModel=true` while
+  the offline fixture is active, evaluation throws
+  `RealModelExecutionRequired` and the controller translates it to **412
+  Precondition Failed** carrying the `REAL_MODEL_EXECUTION_REQUIRED` token —
+  a distinct status and a distinct token, so CI cannot mistake "the harness
+  refused" for "the harness passed". Fixture output describes the pipeline and
+  the fixture, and nothing about any model, so it is not reported in place of
+  a result. The run is read-only: it persists nothing and creates no trace
+  run, so it cannot change the state it measures.

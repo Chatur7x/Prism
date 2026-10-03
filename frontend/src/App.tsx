@@ -14,7 +14,7 @@ import { AuthProvider, RequireRole, useAuth } from './auth/AuthContext'
 import { CorpusProvider } from './corpus/CorpusContext'
 import { BootPage } from './pages/BootPage'
 import { LoginPage } from './pages/LoginPage'
-import { Loading } from './components/ui'
+import { Empty, Loading } from './components/ui'
 
 // Every page is split out. The application has fourteen routes and a reviewer
 // typically uses three or four of them, so bundling the whole pipeline's UI into
@@ -84,7 +84,8 @@ function AuthGate() {
             <Route
               path="/approval"
               element={
-                <RequireRole roles={['VERIFIER', 'ADMIN']}>
+                <RequireRole roles={['VERIFIER', 'ADMIN']}
+                  fallback={<Empty title="Not permitted">The approval queue needs a verifier role.</Empty>}>
                   <ApprovalQueuePage />
                 </RequireRole>
               }
@@ -98,7 +99,8 @@ function AuthGate() {
             <Route
               path="/debates/:id"
               element={
-                <RequireRole roles={['VERIFIER', 'ADMIN']}>
+                <RequireRole roles={['VERIFIER', 'ADMIN']}
+                  fallback={<Empty title="Not permitted">Council pages need a verifier role.</Empty>}>
                   <DebatePage />
                 </RequireRole>
               }
@@ -110,7 +112,16 @@ function AuthGate() {
             <Route
               path="/admin"
               element={
-                <RequireRole roles={['ADMIN']}>
+                <RequireRole
+                  roles={['ADMIN']}
+                  fallback={
+                    <Empty title="Not permitted">
+                      The administration pages need an ADMIN account. You are
+                      signed in without that role, so there is nothing to show
+                      here rather than something failing to load.
+                    </Empty>
+                  }
+                >
                   <AdminPage />
                 </RequireRole>
               }

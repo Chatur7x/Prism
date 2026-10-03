@@ -329,7 +329,12 @@ public class ChatService {
     /** Approved triples whose text overlaps the question or the evidence. */
     private List<Triple> findRelevantTriples(Long corpusId, String question,
                                              List<RetrievedPassage> passages) {
-        String needle = "%" + question.toLowerCase(Locale.ROOT).trim() + "%";
+        // Escape LIKE metacharacters before wrapping in %...%. Without this, a
+        // question containing % matches every approved triple's subject and
+        // object, stuffing same-corpus facts into the prompt. Bounded blast
+        // radius (corpus-scoped, APPROVED-only, citation-checked), but
+        // over-inclusion in a model prompt is still a defect.
+        String needle = "%" + escapeLike(question.toLowerCase(Locale.ROOT).trim()) + "%";
         List<Triple> direct = triples.searchApprovedText(corpusId, needle,
                 org.springframework.data.domain.PageRequest.of(0, 20));
         if (!direct.isEmpty()) {
@@ -353,6 +358,16 @@ public class ChatService {
         return triples.searchApprovedTextForAll(corpusId,
                 java.util.Arrays.stream(terms.toString().split(" "))
                         .filter(t -> !t.isBlank()).toList());
+    }
+
+    /**
+     * Escapes the LIKE metacharacters {@code %}, {@code _} and the escape
+     * character itself, so user text is matched literally. MySQL treats
+     * backslash as the LIKE escape by default, which is what the queries here
+     * run against.
+     */
+    static String escapeLike(String text) {
+        return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /** Verdict facts relevant to the question, keyed by a citable id. */
