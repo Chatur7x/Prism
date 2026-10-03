@@ -1,0 +1,221 @@
+/*
+ * Motion layer.
+ *
+ * `tokens.css` holds the design decisions, `components.css` the components,
+ * `app.css` the page composition. This file holds *how things move* and nothing
+ * else, so motion can be reviewed, tuned, and disabled in one place.
+ *
+ * The discipline comes from Apple's fluid-interfaces system (WWDC: Designing
+ * Fluid Interfaces): feedback on press rather than release, enter along one
+ * path, interruptible short transitions, and restraint — this is an audit tool,
+ * so motion earns its place by orienting the reviewer (where did this panel
+ * come from, what just changed) and never by decorating. No bounce, no elastic
+ * overshoot, no full-viewport movement anywhere in this file.
+ *
+ * All motion is transform/opacity only (compositor-friendly, no layout thrash),
+ * and every rule below is revoked under `prefers-reduced-motion` at the foot of
+ * the file.
+ */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-instant: 100ms;
+  --dur-fast: 180ms;
+  --dur-enter: 320ms;
+  --dur-stagger-step: 35ms;
+}
+
+/* ---- press feedback -------------------------------------------------------
+ * The button answers on pointer-down, not on release. `.btn:active` already
+ * exists in components.css; this extends the same instant language to nav
+ * links and table rows so everything pressable behaves like one system. */
+
+.nav-link {
+  transition: transform var(--dur-instant) ease-out, background-color var(--dur-fast) ease-out;
+}
+.nav-link:active {
+  transform: scale(0.97);
+}
+.btn {
+  transition: transform var(--dur-instant) ease-out, background-color var(--dur-fast) ease-out,
+    border-color var(--dur-fast) ease-out, box-shadow var(--dur-fast) ease-out;
+}
+
+/* ---- page enter ------------------------------------------------------------
+ * Each route mounts fresh, so these run once per navigation: the header
+ * arrives first and settles, then the content follows along the same downward
+ * path. Enter and exit share the path (symmetric by construction — exit is
+ * simply unmount, no competing animation). */
+
+.page-header {
+  animation: page-in var(--dur-enter) var(--ease-out) both;
+}
+.card {
+  animation: card-in var(--dur-enter) var(--ease-out) both;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- table row stagger ------------------------------------------------------
+ * Rows arrive in reading order, each slightly after the last, so a 50-row
+ * approval queue reads as a list filling rather than a wall appearing. Capped
+ * at 15 rows: beyond that the delay would punish large tables, and a reviewer
+ * scrolling a long queue should never wait on choreography.
+ *
+ * Escape hatch: a page that re-sorts or live-updates its table can opt out
+ * with `no-stagger` on any ancestor, since every remount would otherwise
+ * replay the cascade. */
+
+table.data tbody tr {
+  animation: row-in var(--dur-enter) var(--ease-out) both;
+}
+table.data tbody tr:nth-child(1) { animation-delay: calc(1 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(2) { animation-delay: calc(2 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(3) { animation-delay: calc(3 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(4) { animation-delay: calc(4 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(5) { animation-delay: calc(5 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(6) { animation-delay: calc(6 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(7) { animation-delay: calc(7 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(8) { animation-delay: calc(8 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(9) { animation-delay: calc(9 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(10) { animation-delay: calc(10 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(11) { animation-delay: calc(11 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(12) { animation-delay: calc(12 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(13) { animation-delay: calc(13 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(14) { animation-delay: calc(14 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(n + 15) { animation-delay: calc(15 * var(--dur-stagger-step)); }
+.no-stagger table.data tbody tr,
+.no-stagger .card,
+.no-stagger .page-header {
+  animation: none;
+}
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- in-progress pulse -------------------------------------------------------
+ * A pending badge is a promise that something is happening elsewhere. The dot
+ * breathes while the promise is outstanding — the one place in this file where
+ * motion loops, because the state it describes is itself ongoing. Terminal
+ * tones (approved, rejected, verified) never animate: stillness is information. */
+
+.badge.pending::before,
+.badge.contradicted::before {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+/* ---- alerts and empty states --------------------------------------------------
+ * An error banner slides along the same downward path as page content, so it
+ * reads as arriving from the flow rather than flashing over it. There is
+ * deliberately no progress-bar choreography in this file: no producer
+ * component exists for it, and a dead hook would only wait to hijack a future
+ * class name (besides animating `width`, which is paint rather than
+ * compositor work). */
+
+.alert {
+  animation: card-in var(--dur-fast) var(--ease-out) both;
+}
+.empty {
+  animation: page-in var(--dur-enter) var(--ease-out) both;
+}
+
+/* ---- focus ----------------------------------------------------------------------
+ * Keyboard reviewers navigate the whole queue without a pointer. One visible
+ * ring, not two: this rule replaces the `box-shadow` ring from app.css with a
+ * plain outline, because both would otherwise render stacked on every focused
+ * control. */
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  box-shadow: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---- links ------------------------------------------------------------------------- */
+
+a {
+  transition: color var(--dur-fast) ease-out;
+}
+
+/* ---- reduced motion, contrast ------------------------------------------------------------
+ * Two independent signals, per the skill: reduce means gentler equivalents,
+ * not dead UI. Slides and staggers are revoked outright (a 1ms animation with
+ * `both` fill still flashes the `from` frame and keeps the machinery alive),
+ * including the pre-existing infinite spinner and skeleton shimmer. Opacity
+ * and colour changes that aid comprehension are kept.
+ *
+ * Contrast: the badge trust channel is border *style* (dashed pending, double
+ * contradicted, dotted missing) precisely so trust is never colour alone — so
+ * this block does not touch badges at all. */
+
+@media (prefers-reduced-motion: reduce) {
+  .page-header,
+  .card,
+  table.data tbody tr,
+  .alert,
+  .empty,
+  .spinner,
+  .skeleton {
+    animation: none;
+    transition: none;
+  }
+  .badge.pending::before,
+  .badge.contradicted::before {
+    animation: none;
+  }
+  .btn,
+  .nav-link,
+  a {
+    transition: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .card,
+  table.data td,
+  table.data th {
+    border-color: currentColor;
+  }
+}
