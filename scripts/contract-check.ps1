@@ -108,7 +108,7 @@ $cid = $corpus.id
 Say "user=$Username corpus=$cid"
 
 $docs = Invoke-Api -Uri "$Base/api/documents?corpusId=$cid&size=5" -Headers $h
-$doc = @($docs) | Select-Object -First 1
+$doc = @($docs.content) | Select-Object -First 1
 $docId = if ($null -ne $doc) { $doc.id } else { 0 }
 
 # Each entry: label, live call, TS interface the frontend declares for it.
@@ -126,6 +126,45 @@ $cases = @(
   @{ label = 'pagerank';            uri = "$Base/api/graph/${cid}/pagerank?limit=5";                        ts = 'PageRankRow' },
   @{ label = 'communities';         uri = "$Base/api/graph/${cid}/communities";                             ts = 'CommunityRow' }
 )
+
+# The three collection endpoints that previously disagreed with each other.
+#
+# GET /api/documents returned a bare array, GET /api/admin/users returned a
+# hand-built map with a different key set, and the quarantine listing returned
+# {total, content}. All three now return PageResponse<T>. Checking the envelope
+# here is what stops them drifting apart again: the previous contract run
+# reported 18/18 clean while the admin page was reading .length off an object
+# and rendering its empty state for every user, because this endpoint was not
+# among the cases.
+$PageEnvelope = @('content', 'page', 'size', 'totalElements', 'totalPages', 'hasNext')
+$pageCases = @(
+  @{ label = 'documents page';    uri = "$Base/api/documents?corpusId=${cid}&size=5" },
+  @{ label = 'admin users page'; uri = "$Base/api/admin/users?page=0&size=5" }
+)
+if ($docId -gt 0) {
+  $pageCases += @{ label = 'quarantine page'; uri = "$Base/api/documents/${docId}/quarantine?size=5" }
+}
+foreach ($case in $pageCases) {
+  $body = Invoke-Api -Uri $case.uri -Headers $h
+  $status = if ($body.PSObject.Properties.Name -contains '__status') { [int]$body.__status } else { 200 }
+  if ($status -ne 200) {
+    # An endpoint the caller may not reach cannot be checked, and must not be
+    # reported as drift. /api/admin/users is ADMIN-gated, so a VERIFIER run sees
+    # 403 -- and calling that "missing all six envelope fields" would be a false
+    # alarm that trains people to ignore this check.
+    Say ("  skip  {0,-22} HTTP {1}, not reachable as this account" -f $case.label, $status) 'DarkGray'
+    continue
+  }
+  $missing = @()
+  foreach ($field in $PageEnvelope) {
+    if (-not ($body.PSObject.Properties.Name -contains $field)) { $missing += $field }
+  }
+  if ($missing.Count -eq 0) {
+    Check "$($case.label) envelope is the standard page shape" $true "all 6 fields present"
+  } else {
+    Check "$($case.label) envelope is the standard page shape" $false "missing: $($missing -join ', ')"
+  }
+}
 if ($docId -gt 0) {
   $cases += @(
     @{ label = 'document detail';   uri = "$Base/api/documents/${docId}";                                  ts = 'DocumentRow' },

@@ -1,32 +1,59 @@
 package com.prism.document;
 
+import com.prism.common.PageResponse;
 import com.prism.corpus.CorpusAccessService;
+import com.prism.common.PageResponse;
 import com.prism.extraction.ExtractionQuarantine;
+import com.prism.common.PageResponse;
 import com.prism.extraction.ExtractionQuarantineRepository;
+import com.prism.common.PageResponse;
 import com.prism.extraction.ExtractionRun;
+import com.prism.common.PageResponse;
 import com.prism.extraction.ExtractionRunRepository;
+import com.prism.common.PageResponse;
 import com.prism.pipeline.IngestionPipeline;
+import com.prism.common.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import com.prism.common.PageResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.prism.common.PageResponse;
 import jakarta.validation.Valid;
+import com.prism.common.PageResponse;
 import jakarta.validation.constraints.NotBlank;
+import com.prism.common.PageResponse;
 import jakarta.validation.constraints.NotNull;
+import com.prism.common.PageResponse;
 import jakarta.validation.constraints.Size;
+import com.prism.common.PageResponse;
 import org.springframework.data.domain.PageRequest;
+import com.prism.common.PageResponse;
 import org.springframework.http.HttpStatus;
+import com.prism.common.PageResponse;
 import org.springframework.http.ResponseEntity;
+import com.prism.common.PageResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.GetMapping;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.PathVariable;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.PostMapping;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.RequestMapping;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.RequestParam;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.RestController;
+import com.prism.common.PageResponse;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.prism.common.PageResponse;
 import java.time.Instant;
+import com.prism.common.PageResponse;
 import java.util.List;
 
 @RestController
@@ -77,12 +104,15 @@ public class DocumentController {
     }
 
     @GetMapping
-    @Operation(summary = "List documents in a corpus")
-    public List<DocumentResponse> list(@RequestParam Long corpusId,
-                                       @RequestParam(defaultValue = "0") int page,
-                                       @RequestParam(defaultValue = "50") int size) {
+    @Operation(summary = "List documents in a corpus",
+            description = "Returns the standard page envelope so a client can tell whether more "
+                    + "pages exist. This used to return a bare array with the total discarded.")
+    public PageResponse<DocumentResponse> list(@RequestParam Long corpusId,
+                                               @RequestParam(defaultValue = "0") int page,
+                                               @RequestParam(defaultValue = "50") int size) {
         Long userId = access.requireCurrentUserId();
-        return documents.list(userId, corpusId, page, size).stream().map(DocumentResponse::from).toList();
+        return PageResponse.of(documents.list(userId, corpusId, page, size)
+                .map(DocumentResponse::from));
     }
 
     @PostMapping
@@ -157,34 +187,51 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}/quarantine")
-    @Operation(summary = "Rejected model responses for this document, for audit")
-    public java.util.Map<String, Object> quarantine(@PathVariable Long id,
+    @Operation(summary = "Rejected model responses for this document, for audit",
+            description = "Returns the standard page envelope. The rows are typed rather than a "
+                    + "hand-built map, so a renamed field fails the contract check instead of "
+                    + "rendering as a blank cell.")
+    public PageResponse<QuarantineRow> quarantine(@PathVariable Long id,
                                                    @RequestParam(defaultValue = "0") int page,
                                                    @RequestParam(defaultValue = "50") int size) {
         Long userId = access.requireCurrentUserId();
         documents.get(userId, id);
         var result = quarantine.findByDocumentIdOrderByCreatedAtDesc(id,
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200)));
-        List<java.util.Map<String, Object>> rows = result.getContent().stream()
-                .map(DocumentController::describeQuarantine)
-                .toList();
-        return java.util.Map.of("content", rows, "total", result.getTotalElements(),
-                "page", result.getNumber(), "size", result.getSize());
+        return PageResponse.of(result.map(QuarantineRow::from));
     }
 
-    private static java.util.Map<String, Object> describeQuarantine(ExtractionQuarantine q) {
-        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
-        row.put("id", q.getId());
-        row.put("chunkId", q.getChunk() == null ? null : q.getChunk().getId());
-        row.put("chunkIndex", q.getChunkIndex());
-        row.put("errorType", q.getErrorType().name());
-        row.put("validationMessage", q.getValidationMessage());
-        row.put("model", q.getModel());
-        row.put("promptVersion", q.getPromptVersion());
-        row.put("attempt", q.getAttempt());
-        row.put("createdAt", q.getCreatedAt());
-        row.put("rawResponse", q.getRawResponse());
-        return row;
+    /**
+     * One quarantined model response.
+     *
+     * <p>This was a hand-built {@code Map<String, Object>} keyed by string
+     * literals, which is how a renamed field becomes a silently absent one. The
+     * record is transcribed into {@code frontend/src/api/types.ts} and checked by
+     * the contract script, so a change here now fails the build rather than
+     * rendering blank cells.
+     *
+     * <p>{@code rawResponse} is retained verbatim on purpose: it is the evidence
+     * for whatever the model actually returned, and reformatting it would defeat
+     * the point of quarantining rather than discarding.
+     */
+    public record QuarantineRow(Long id, Long chunkId, Integer chunkIndex, String errorType,
+                                String validationMessage, String model, String promptVersion,
+                                Integer attempt, java.time.Instant createdAt,
+                                String rawResponse) {
+
+        static QuarantineRow from(ExtractionQuarantine q) {
+            return new QuarantineRow(
+                    q.getId(),
+                    q.getChunk() == null ? null : q.getChunk().getId(),
+                    q.getChunkIndex(),
+                    q.getErrorType().name(),
+                    q.getValidationMessage(),
+                    q.getModel(),
+                    q.getPromptVersion(),
+                    q.getAttempt(),
+                    q.getCreatedAt(),
+                    q.getRawResponse());
+        }
     }
 
     @PostMapping("/{id}/reprocess")

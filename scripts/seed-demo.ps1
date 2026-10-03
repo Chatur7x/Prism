@@ -189,7 +189,7 @@ $existing = @{}
 try {
   $have = Invoke-RestMethod -Method Get -Uri "$Base/api/documents?corpusId=$corpusId&size=500" `
          -Headers @{ Authorization = "Bearer $($login.accessToken)" } -TimeoutSec 60
-  foreach ($d in @($have)) {
+  foreach ($d in @($have.content)) {
     if ($d.originalFilename) { $existing[$d.originalFilename] = $d.id }
   }
 } catch {
@@ -268,9 +268,9 @@ for ($attempt = 0; $attempt -lt 150; $attempt++) {
   # access returns a space-joined string. Assigning straight through keeps Count
   # correct for both the single-document and many-document cases.
   $docs = Invoke-RestMethod -Uri "$Base/api/documents?corpusId=${corpusId}&size=200" -Headers $headers -TimeoutSec 30
-  if ($null -eq $docs) { $docs = @() }
-  $docList = @($docs)
-  if ($docList.Count -eq 1 -and $docList[0] -is [array]) { $docList = $docList[0] }
+  # The list endpoints return the shared page envelope, so the rows live under
+  # .content rather than at the top level.
+  if ($null -eq $docs) { $docList = @() } else { $docList = @($docs.content) }
 
   $pending = 0
   $triples = 0

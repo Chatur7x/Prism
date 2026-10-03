@@ -1,28 +1,51 @@
 package com.prism.user;
 
+import com.prism.common.PageResponse;
 import com.prism.config.LlmProperties;
+import com.prism.common.PageResponse;
 import com.prism.corpus.CorpusAccessService;
+import com.prism.common.PageResponse;
 import com.prism.llm.LlmClient;
+import com.prism.common.PageResponse;
 import com.prism.pipeline.BackgroundJob;
+import com.prism.common.PageResponse;
 import com.prism.pipeline.BackgroundJobRepository;
+import com.prism.common.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import com.prism.common.PageResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.prism.common.PageResponse;
 import jakarta.validation.Valid;
+import com.prism.common.PageResponse;
 import jakarta.validation.constraints.NotNull;
+import com.prism.common.PageResponse;
 import org.springframework.data.domain.PageRequest;
+import com.prism.common.PageResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.GetMapping;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.PatchMapping;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.PathVariable;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.PostMapping;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.RequestMapping;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.RequestParam;
+import com.prism.common.PageResponse;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.prism.common.PageResponse;
 import java.time.Instant;
+import com.prism.common.PageResponse;
 import java.util.LinkedHashMap;
+import com.prism.common.PageResponse;
 import java.util.List;
+import com.prism.common.PageResponse;
 import java.util.Map;
 
 /** Administration. Every route requires the ADMIN role. */
@@ -58,12 +81,14 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    @Operation(summary = "List all accounts")
-    public Map<String, Object> listUsers(@RequestParam(defaultValue = "0") int page,
-                                         @RequestParam(defaultValue = "50") int size) {
+    @Operation(summary = "List all accounts",
+            description = "Returns the standard page envelope. This used to hand-build a map with a "
+                    + "different key set, which the frontend typed as a bare array -- so the admin "
+                    + "page read .length off an object and always rendered its empty state.")
+    public PageResponse<UserSummary> listUsers(@RequestParam(defaultValue = "0") int page,
+                                               @RequestParam(defaultValue = "50") int size) {
         var result = users.list(PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200)));
-        return Map.of("content", result.getContent().stream().map(UserSummary::from).toList(),
-                "total", result.getTotalElements(), "page", result.getNumber(), "size", result.getSize());
+        return PageResponse.of(result.map(UserSummary::from));
     }
 
     @PostMapping("/users")

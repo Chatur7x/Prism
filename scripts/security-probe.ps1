@@ -139,7 +139,7 @@ Say "owner=$ownerName  corpus=$corpusId"
 
 # A document to probe chunk-level access. Reuse whatever the corpus already has.
 $docs = Invoke-Api -Uri "$Base/api/documents?corpusId=$corpusId&size=5" -Headers $ownerHeaders
-$doc = @($docs) | Select-Object -First 1
+$doc = @($docs.content) | Select-Object -First 1
 if ($null -ne $doc) { Say "document=$($doc.id)" }
 
 # ---- two hostile accounts ---------------------------------------------------

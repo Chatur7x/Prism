@@ -11,6 +11,13 @@
  * this file in the same commit. A mismatch here is a real defect, not a
  * cosmetic one.
  *
+ * <p><b>One envelope for every collection.</b> {@code PageResponse<T>} below is the
+ * single shape used by {@code GET /api/documents}, {@code GET /api/admin/users}
+ * and the quarantine listing. It replaced three different shapes, one of which
+ * the frontend mistyped as a bare array -- which is why the admin page rendered
+ * "No users" unconditionally. Spring Data's own {@code Page} is never exposed:
+ * its JSON carries an internal {@code pageable} and changes between versions.
+ *
  * <p><b>Nullable means ABSENT, not null.</b> The backend serialises with
  * `JsonInclude.Include.NON_NULL`, so a field whose value is null is left out of
  * the response entirely -- it is never sent as `null`. Every nullable backend
@@ -153,10 +160,30 @@ export interface QuarantineRow {
   createdAt: string
 }
 
-export interface QuarantinePage {
-  total: number
-  content: QuarantineRow[]
+/**
+ * The one collection envelope every paged endpoint returns.
+ *
+ * <p>Mirrors the backend's `com.prism.common.PageResponse`. `hasNext` is present
+ * so a client never has to infer "is there more" from a short final page, which
+ * is ambiguous when the final page happens to be full.
+ */
+export interface PageResponse<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  hasNext: boolean
 }
+
+/**
+ * The quarantine listing.
+ *
+ * <p>Aliased to the shared envelope rather than declaring its own `{total,
+ * content}` shape. The alias is kept so call sites read clearly; the underlying
+ * contract is identical to every other collection endpoint.
+ */
+export type QuarantinePage = PageResponse<QuarantineRow>
 
 // ---- knowledge ------------------------------------------------------------
 

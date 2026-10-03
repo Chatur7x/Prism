@@ -134,12 +134,21 @@ public class DocumentService {
     }
 
     @Transactional(readOnly = true)
-    public List<Document> list(Long userId, Long corpusId, int page, int size) {
+    /**
+     * Returns the page itself rather than just its content.
+     *
+     * <p>This used to return {@code getContent()} and discard the total, which is
+     * precisely why {@code GET /api/documents} was a bare array: a client had no
+     * way to learn whether more pages existed, so it either guessed or ignored
+     * paging entirely.
+     */
+    public org.springframework.data.domain.Page<Document> list(Long userId, Long corpusId,
+                                                               int page, int size) {
         Corpus corpus = access.requireAccessible(corpusId, userId);
         int safeSize = Math.min(Math.max(size, 1), 200);
         int safePage = Math.max(page, 0);
         return documents.findByCorpusOrderByCreatedAtDesc(corpus,
-                org.springframework.data.domain.PageRequest.of(safePage, safeSize)).getContent();
+                org.springframework.data.domain.PageRequest.of(safePage, safeSize));
     }
 
     @Transactional(readOnly = true)

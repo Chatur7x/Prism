@@ -28,6 +28,7 @@ import type {
   DocumentContent,
   DocumentProgress,
   DocumentRow,
+  PageResponse,
   Entity,
   FsmView,
   GraphScope,
@@ -94,8 +95,12 @@ export const corpusApi = {
 // ---- documents ------------------------------------------------------------
 
 export const documentApi = {
+  /**
+   * Returns the page envelope, not a bare array. A caller wanting every document
+   * must follow `hasNext` rather than assume one request suffices.
+   */
   list: (corpusId: number, size = 200) =>
-    request<DocumentRow[]>(`/api/documents${qs({ corpusId, size })}`),
+    request<PageResponse<DocumentRow>>(`/api/documents${qs({ corpusId, size })}`),
 
   createText: (corpusId: number, title: string, contentText: string) =>
     request<DocumentRow>('/api/documents', {
@@ -328,7 +333,11 @@ export const traceApi = {
 // ---- admin ----------------------------------------------------------------
 
 export const adminApi = {
-  users: () => request<UserSummary[]>('/api/admin/users'),
+  /**
+   * Was typed `UserSummary[]` while the server returned a page object, so the
+   * admin page read `.length` off an object and always rendered its empty state.
+   */
+  users: () => request<PageResponse<UserSummary>>('/api/admin/users'),
 
   createUser: (username: string, email: string, password: string, role: string) =>
     request<UserSummary>('/api/admin/users', {

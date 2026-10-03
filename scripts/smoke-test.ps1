@@ -371,8 +371,8 @@ try {
     -ContentType "application/json" `
     -Body (@{name="Other $suffix"; description="isolation probe"} | ConvertTo-Json) -TimeoutSec 20
   $otherDocs = Invoke-RestMethod -Uri "$Base/api/documents?corpusId=$($other.id)" -Headers $headers -TimeoutSec 20
-  Check "other corpus is readable by its owner" ($null -ne $otherDocs) "no response"
-  Check "other corpus contains none of the first corpus's documents" ($otherDocs.Count -eq 0) "$($otherDocs.Count) leaked"
+  Check "other corpus is readable by its owner" ($null -ne $otherDocs.content) "no response"
+  Check "other corpus contains none of the first corpus's documents" ($otherDocs.content.Count -eq 0) "$($otherDocs.content.Count) leaked"
 } catch {
   Check "corpus isolation probe" $false $_.Exception.Message
 }

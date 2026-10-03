@@ -35,7 +35,8 @@ export function DocumentsPage() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const docs = useAsync(
-    () => (selected ? documentApi.list(selected.id) : Promise.resolve([])),
+    // The API returns the page envelope; the page wants the rows.
+    async () => (selected ? (await documentApi.list(selected.id)).content : []),
     [selected?.id],
   )
 

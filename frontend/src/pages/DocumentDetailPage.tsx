@@ -158,7 +158,7 @@ export function DocumentDetailPage() {
         </Card>
 
         <Card
-          title={`Quarantine (${quarantine.data?.total ?? 0})`}
+          title={`Quarantine (${quarantine.data?.totalElements ?? 0})`}
           actions={
             <span className="tiny muted">
               Model output that failed validation, kept verbatim for audit
@@ -168,13 +168,13 @@ export function DocumentDetailPage() {
         >
           {quarantine.loading && <Loading />}
           {quarantine.error != null && <ErrorState error={quarantine.error} />}
-          {quarantine.data && quarantine.data.total === 0 && (
+          {quarantine.data && quarantine.data.totalElements === 0 && (
             <Empty title="Nothing quarantined">
               Every model response in this document passed JSON parsing, schema validation, and
               semantic validation.
             </Empty>
           )}
-          {quarantine.data && quarantine.data.total > 0 && (
+          {quarantine.data && quarantine.data.totalElements > 0 && (
             <div className="table-wrap" style={{ maxHeight: 520, overflowY: 'auto' }}>
               <table className="data">
                 <thead>

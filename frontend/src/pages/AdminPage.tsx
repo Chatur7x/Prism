@@ -41,7 +41,7 @@ export function AdminPage() {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<Role>('VERIFIER')
 
-  const users = useAsync(() => adminApi.users(), [])
+  const users = useAsync(async () => (await adminApi.users()).content, [])
   const jobs = useAsync(() => adminApi.jobs(), [])
   const status = useAsync(() => adminApi.status(), [])
 
