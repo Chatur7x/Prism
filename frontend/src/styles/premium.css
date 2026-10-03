@@ -1,0 +1,267 @@
+/*
+ * Premium layer.
+ *
+ * Layer order is tokens -> components -> app -> motion -> premium: everything
+ * here is an override, so the design system underneath stays intact and this
+ * file can be read as "what makes it feel expensive" in isolation. Delete this
+ * file and the product still works; keep it and the product feels finished.
+ *
+ * Rules for this layer, enforced by review:
+ * - No layout changes. Only surface, depth, rhythm, and feedback.
+ * - Trust semantics are never recolored and never reduced to colour alone.
+ *   The badge border-style channel from components.css is sacred.
+ * - Every glow uses color-mix with current tokens, so light and dark modes
+ *   stay correct without duplicated palettes.
+ * - Nothing here may move on its own. Hover and focus only.
+ */
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* ---- scrollbars: quiet, thin, present --------------------------------------- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- brand: the prism mark earns its name --------------------------------------
+ * A conic spectrum behind a glass facet. One element, no images, and it reads
+ * at 16px as well as at hero size because the geometry is all gradient stops. */
+
+.brand-mark {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 55%),
+    conic-gradient(
+      from 210deg,
+      #2f5fd0,
+      #6a3bb5,
+      #8a2f6b,
+      #a32b2b,
+      #8a5a00,
+      #1c7a4a,
+      #1d5f8a,
+      #2f5fd0
+    );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.25) inset,
+    0 2px 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.brand-text {
+  letter-spacing: 0.14em;
+}
+
+/* ---- login: the front door --------------------------------------------------------
+ * The fatal-card is the first thing anyone sees; it should feel like entering
+ * a serious instrument, not a form. Ambient spectrum wash behind, elevated
+ * card on top. */
+
+.fatal {
+  background:
+    radial-gradient(900px 480px at 50% -8%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+    radial-gradient(640px 420px at 88% 108%, color-mix(in srgb, #6a3bb5 10%, transparent), transparent 70%);
+}
+.fatal-card {
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--line-1),
+    0 0 44px -18px color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: var(--radius-lg);
+}
+
+/* ---- fields: weight and rhythm ------------------------------------------------------ */
+
+.field-label {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  transition: border-color var(--dur-fast, 180ms) ease-out, box-shadow var(--dur-fast, 180ms) ease-out;
+}
+input:not([type='checkbox']):not([type='radio']):hover,
+select:hover,
+textarea:hover {
+  border-color: var(--line-2);
+}
+
+/* ---- sidebar: depth and orientation --------------------------------------------------- */
+
+.sidebar {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 240px),
+    var(--surface-0);
+  border-right: 1px solid var(--line-1);
+}
+.nav-group-label {
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 10.5px;
+}
+.nav-link {
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+}
+.nav-link:hover {
+  background: var(--surface-2);
+}
+.nav-link.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent), 0 1px 8px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+  font-weight: 600;
+}
+.nav-icon {
+  color: var(--accent);
+}
+.who {
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+/* ---- cards: lift on hover, authority in the head ----------------------------------------- */
+
+.card {
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur-fast, 180ms) ease-out, border-color var(--dur-fast, 180ms) ease-out,
+    transform var(--dur-fast, 180ms) ease-out;
+}
+.card:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--line-2);
+}
+.card-head {
+  border-bottom: 1px solid var(--line-1);
+}
+.card-head h2,
+.card-head h3 {
+  letter-spacing: -0.01em;
+}
+
+/* ---- tables: sticky heads, calm rows, tabular numerals --------------------------------------- */
+
+table.data thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-1);
+  z-index: 1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 11px;
+  border-bottom: 1px solid var(--line-2);
+}
+table.data tbody tr {
+  transition: background-color var(--dur-fast, 180ms) ease-out;
+}
+table.data td.num,
+table.data th.num,
+.stat-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- buttons: sheen on primary, weight on verdicts ---------------------------------------------- */
+
+.btn.primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, white 12%), var(--accent));
+  box-shadow: 0 1px 2px rgba(18, 21, 26, 0.2), 0 0 0 1px color-mix(in srgb, var(--accent) 60%, black 10%),
+    0 2px 12px -6px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.btn.primary:hover:not(:disabled) {
+  box-shadow: 0 1px 2px rgba(18, 21, 26, 0.2), 0 0 0 1px color-mix(in srgb, var(--accent) 60%, black 10%),
+    0 4px 18px -6px color-mix(in srgb, var(--accent) 80%, transparent);
+  filter: brightness(1.06);
+}
+.btn.approve {
+  box-shadow: 0 0 0 1px currentColor inset;
+}
+.btn.reject {
+  box-shadow: 0 0 0 1px currentColor inset;
+}
+.btn.sm {
+  letter-spacing: 0.02em;
+}
+
+/* ---- stats: the numbers are the product ------------------------------------------------ */
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+.stat.accent .stat-value {
+  text-shadow: 0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.stat-label {
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-size: 10.5px;
+}
+
+/* ---- badges: depth without touching the trust channel --------------------------------------------
+ * Colour, background, border styles: all inherited. This adds only the dot
+ * glow on approved/verified states — a settled record should feel settled. */
+
+.badge.approved::before,
+.badge.verified::before,
+.badge.supported::before {
+  box-shadow: 0 0 6px 1px currentColor;
+}
+
+/* ---- alerts and empty states: presence -------------------------------------------------------------- */
+
+.alert {
+  box-shadow: var(--shadow);
+}
+.empty-title {
+  letter-spacing: -0.01em;
+}
+
+/* ---- page header: quiet authority ---------------------------------------------------------------------- */
+
+.page-header h1 {
+  letter-spacing: -0.02em;
+}
+.page-subtitle {
+  text-wrap: balance;
+}
+
+/* ---- evidence blocks: the product ------------------------------------------------------------
+ * Evidence text is what reviewers read all day. Inset depth, comfortable
+ * measure, and a citation colour that never relies on hue alone. */
+
+.evidence {
+  box-shadow: var(--shadow-sm) inset;
+  max-width: 78ch;
+}
+
+/* ---- reduced motion: stillness keeps every premium cue ----------------------------------------------
+ * Hover lift, sheens, and glows that move are revoked; everything that is
+ * merely surface (borders, weights, spacing) stays. */
+
+@media (prefers-reduced-motion: reduce) {
+  .card:hover,
+  .btn.primary:hover:not(:disabled) {
+    transform: none;
+    filter: none;
+  }
+  .card,
+  table.data tbody tr {
+    transition: none;
+  }
+}

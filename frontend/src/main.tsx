@@ -8,6 +8,7 @@ import './styles/tokens.css'
 import './styles/components.css'
 import './styles/app.css'
 import './styles/motion.css'
+import './styles/premium.css'
 
 const container = document.getElementById('root')
 if (!container) {
