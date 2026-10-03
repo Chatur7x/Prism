@@ -21,7 +21,12 @@
 param(
   [string]$Base = 'http://localhost:8080',
   [string]$Username = '',
-  [string]$Password = 'DemoOperator!2026x'
+  [string]$Password = 'DemoOperator!2026x',
+  # Without this the script takes the first corpus the account can see, which may
+  # be one with no approved knowledge -- in which case every graph endpoint returns
+  # an empty array and the run has nothing meaningful to compare. Pass -CorpusId 1
+  # (or the seeded corpus) to check a corpus that actually has a graph.
+  [long]$CorpusId = 0
 )
 
 $ErrorActionPreference = 'Continue'
@@ -102,10 +107,18 @@ if ($null -eq $login -or $login.PSObject.Properties.Name -contains '__status') {
 }
 $h = @{ Authorization = "Bearer $($login.accessToken)" }
 $corpora = Invoke-Api -Uri "$Base/api/corpora" -Headers $h
-$corpus = @($corpora) | Select-Object -First 1
+if ($CorpusId -gt 0) {
+  $corpus = @($corpora) | Where-Object { $_.id -eq $CorpusId } | Select-Object -First 1
+  if ($null -eq $corpus) { Say "corpus $CorpusId not visible to $Username" 'Red'; exit 2 }
+} else {
+  $corpus = @($corpora) | Select-Object -First 1
+}
 if ($null -eq $corpus) { Say 'no corpus available' 'Yellow'; exit 2 }
 $cid = $corpus.id
-Say "user=$Username corpus=$cid"
+Say "user=$Username corpus=$cid ('$($corpus.name)')"
+if ($CorpusId -eq 0) {
+  Say "note: picked the first visible corpus. Pass -CorpusId to check one that has approved knowledge." 'DarkGray'
+}
 
 $docs = Invoke-Api -Uri "$Base/api/documents?corpusId=$cid&size=5" -Headers $h
 $doc = @($docs.content) | Select-Object -First 1
@@ -201,6 +214,19 @@ foreach ($c in $cases) {
   if ($null -eq $declared) {
     $script:Info++
     Say ("  note  no TS interface named {0} for {1}" -f $c.ts, $c.label) 'DarkGray'
+    continue
+  }
+  # An empty collection is not drift. There is nothing to compare against, so a
+  # field check over zero rows can only produce false alarms -- and a check that
+  # cries wolf on an empty graph is a check people stop reading.
+  #
+  # This fired for real: the prose evaluation corpus has no approved triples, so
+  # /api/graph/{id}/pagerank correctly returns [], and the run reported "server
+  # sends: <empty array>" as drift. The graph being empty is a fact about the
+  # corpus, not about the contract.
+  if ($live -is [array] -and $live.Count -eq 0) {
+    $script:Info++
+    Say ("  skip  {0,-22} returned an empty collection; no rows to compare" -f $c.label) 'DarkGray'
     continue
   }
   $actual = Get-Keys $live
