@@ -95,6 +95,106 @@ provider, which returns no `SUPPORTED`, so there is no positive class to score.
 
 ---
 
+## Extraction from prose
+
+The extraction figures above come from the **canonical** gold set, which states
+every fact as `Subject predicate Object`. That set measures transcription. It
+cannot measure extraction from natural prose, and this section is the one that
+can.
+
+### The dataset
+
+`eval/prose-gold-v1.json`, version `prose-gold-v1`, over the ten documents in
+`eval/prose-corpus/`.
+
+| | |
+|---|---|
+| Labelled sentences | 81 |
+| Negatives (`expectNothing`) | **48 — 59%** |
+| Gold triples | 40, across 19 of the 28 registered predicates |
+| Gold claims | 46, across POSITIVE, NEGATIVE and NEUTRAL |
+| Documents | 10 |
+
+The negatives are the point. A prose corpus with no denials cannot measure
+precision, and denials are where extraction systems fail most expensively. The
+set includes sentences that explicitly deny a relationship while naming both
+parties, sentences that name a plausible false fact and reject it, and two
+sentences shaped like instructions — one a literal injection string quoted as an
+artefact, one genuine instructions to a human reader — both labelled to extract
+nothing.
+
+Some sentences state a real relation the vocabulary cannot express (secondment,
+litigation, administration, co-location) and are labelled nothing, with the reason
+recorded per sentence. Inventing a composite entity name to force them into a
+predicate would have made the numbers better and the dataset a lie.
+
+### Measured, against the offline fixture
+
+| | canonical | prose |
+|---|---|---|
+| triples P / R / F1 | 0.9706 / 1.0000 / 0.9851 | **0.0000 / 0.0000 / 0.0000** |
+| claims P / R / F1 | 0.3641 / 0.6768 / 0.4735 | **0.0000 / 0.0000 / 0.0000** |
+| malformed | 0 of 23 | 0 of 41 |
+| quarantine | 0 of 23 | 0 of 41 |
+| ungrounded | not measured | 0 of 41 |
+
+Raw totals, triples: expected 40, predicted 14, correct 0, missed 40, incorrect 14.
+Claims: expected 46, predicted 169, correct 0, missed 46, incorrect 169.
+
+**The zeroes are correct and are the most useful number in this document.** The
+offline provider recognises only canonical sentences, so pointed at prose it finds
+14 incidental occurrences of a predicate word — `controls`, `supplies`, `owns` — and
+gets every one wrong. This is the concrete demonstration that the canonical corpus
+was flattering the fixture, and it is why the prose corpus was written.
+
+These numbers describe the fixture and the pipeline. **No model has been
+evaluated.**
+
+### The harness will not report fixture output as a model result
+
+With `-RequireRealModel` and the fixture active, the endpoint returns HTTP 412
+with the body token `REAL_MODEL_EXECUTION_REQUIRED` and the CLI exits **4**.
+
+```bash
+powershell -File scripts/llm-eval.ps1 -Username <v> -Password '<p>' \
+  -CorpusId <prose-corpus> -Dataset prose -RequireRealModel
+```
+
+The status is distinct from a success and the exit code is distinct from a
+failure, so a CI job cannot mistake a refusal for a pass. The token is asserted
+stable by a test, because a CI job greps for that string.
+
+### Caveats that must travel with these figures
+
+- The dataset is **fictional prose written for the purpose**. It is not a
+  statistically representative sample of real documents.
+- It contains no OCR noise, tables, homonyms, aliases or transliteration
+  variants, all of which make real extraction harder. **Its figures are an upper
+  bound, not a forecast.**
+- Expectations are claimed, not broadcast: an expectation belongs to a sentence,
+  a sentence lives in one chunk, and each is handed to exactly one chunk. The
+  first implementation scattered a document's whole gold set across all of its
+  chunks and reported 156 expected from a 40-triple gold set — a harness
+  manufacturing its own recall.
+- Matching is case-folded, whitespace-collapsed equality on subject, predicate and
+  object; claims additionally require matching polarity. **Entity aliases are not
+  resolved before comparison**, so a near-miss spelling counts as a miss.
+- A chunk the harness refuses contributes no predictions, so everything expected
+  from it is a miss. Hiding that would let a provider score well by refusing to
+  answer.
+
+### Not measured
+
+- Any real model's precision, recall or F1.
+- Any real model's malformed-response or quarantine rate.
+- How often a real model invents a source sentence.
+- **Entity-resolution quality: not measured at all.** Resolving entities means
+  writing them, which would corrupt the corpus being measured. Recorded as absent
+  rather than approximated.
+- Verification performance against an independent hand-labelled set. The offline
+  provider produces no `SUPPORTED` verdict, so there is no positive class to
+  score, and that gold set was not built in this pass.
+
 ## Retrieval
 
 ### Why it exists

@@ -163,20 +163,25 @@ when it is the first thing to touch the API — which makes it a flaky test rath
 than a reliable one.
 
 ```bash
-cd backend && mvn test      # 177 tests, 0 skipped
+cd backend && mvn test      # 205 tests, 0 skipped
 cd frontend && npm run build
 
 # 31-check security probe, including cross-corpus authorization
 powershell -File scripts/security-probe.ps1 -OwnerUsername <u>
 
-# 18-endpoint contract check: live JSON against frontend/src/api/types.ts,
-# in both directions
+# 20-endpoint contract check: live JSON against frontend/src/api/types.ts,
+# in both directions, plus the page envelope
 powershell -File scripts/contract-check.ps1 -Username <u>
+
+# extraction quality against hand-written prose labels
+powershell -File scripts/seed-prose-corpus.ps1 -Username <u> -Password '<p>'
+powershell -File scripts/llm-eval.ps1 -Username <v> -Password '<p>' \
+  -CorpusId <prose> -Dataset prose
 ```
 
-All 177 backend tests run, including the 6 migration integration tests against a
-real MySQL container. Nothing is skipped and nothing is counted green for having
-not executed.
+All 205 backend tests run, including the 11 schema and migration integration tests
+against a real MySQL container. Nothing is skipped and nothing is counted green
+for having not executed.
 
 ---
 
@@ -187,17 +192,52 @@ defect in the code: **no real language model has ever been evaluated.** Everythi
 measured so far ran against a deterministic offline fixture, which proves the
 pipeline mechanics and says nothing about extraction or judgement quality.
 
-The measurement harness for it now exists and is verified end to end — 99
-hand-checked labels whose source sentences are asserted against the corpus, a
-runner that executes the production extraction path, and a CLI that writes a
-reproducible JSON report. It has been run against the offline provider and
-produces sensible numbers. It has **not** been run against a real model, because
-no provider credentials were available in the environment this was built in.
+The blocker is recorded as `REAL_MODEL_EVALUATION_PENDING`.
 
-Two further gaps are recorded rather than glossed: the demo corpus states facts in
-canonical form, so even a completed real-model run would measure transcription
-rather than extraction from prose; and the automated schema contract check that
-would catch an unmapped NOT NULL column is still outstanding.
+The measurement harness for it exists, is verified end to end, and **refuses to
+fake a result**. Two datasets, because one could not answer the question:
+
+- **canonical** — 99 hand-checked labels over 23 documents, which measures
+  transcription;
+- **prose** — `eval/prose-gold-v1.json`, 81 hand-written labels over 10 documents
+  of fictional report prose, of which **48 (59%) state that nothing should be
+  extracted**. This one measures extraction from prose, which is the actual
+  question. Every label records the exact source sentence and a test asserts that
+  sentence appears in the document it is attributed to, so a fabricated label
+  fails the build.
+
+Both harnesses run the production extraction path and are read-only. Run with
+`-RequireRealModel` while the offline fixture is active, the harness returns
+HTTP 412 carrying `REAL_MODEL_EXECUTION_REQUIRED` and the CLI exits 4 — a distinct
+status and a distinct exit code, so CI cannot mistake "the harness refused" for
+"the harness passed".
+
+Pointed at prose, the offline fixture scores **0.0000 across the board**, and that
+is the correct answer. It only recognises `Subject predicate Object` sentences, so
+on prose it finds 14 incidental occurrences of a predicate word and gets every one
+wrong. That is the concrete demonstration that the canonical corpus was flattering
+the fixture.
+
+Also closed this pass, and previously open:
+
+- **Automated schema contract check.** `SchemaContractChecker` flags an unmapped
+  `NOT NULL` column with no default — the defect that shipped for the whole life of
+  the project and was only ever found by a runtime error — along with missing
+  mapped columns and tables, missing critical indexes, and missing critical foreign
+  keys. A test recreates the real defect and proves the check fails.
+- **One collection envelope.** Three different response shapes existed for one
+  concept. Unifying them exposed a live bug: the admin page was typed against a
+  bare array while the server returned a page object, so it rendered "No users"
+  for every account while the contract check reported clean.
+- **Performance baseline** in [`docs/performance.md`](docs/performance.md) — a
+  baseline on one laptop, explicitly not a scalability claim, and containing no
+  model latency because no model has been evaluated.
+
+Still not done, and recorded rather than glossed: the full per-resource
+cross-user/cross-corpus authorization sweep, the provenance and Glass Box replay
+audits, the untested recovery scenarios (database interruption, restart during
+extraction or synthesis, duplicate submission, concurrent debate advance), and the
+30-step browser journey.
 
 [`docs/limitations.md`](docs/limitations.md) is the authoritative list, including
 a phase-by-phase table of what has not been reached. See

@@ -19,55 +19,91 @@ Two rules govern its contents:
 
 ## 1. No real model has ever been evaluated
 
-**Status: harness built and verified; real-model execution not performed.** This is
-the single blocking limitation for a release decision.
+**Status: `PENDING REAL MODEL`.** Harness built, verified end to end, and proven
+able to refuse to fake a result. This remains the single blocking limitation for a
+release decision.
 
 The retrieval benchmark measures PRISM's own retriever over a fixed corpus. That
-is a genuine measurement and it caught a real defect (§3), but it says nothing
-about extraction quality, because extraction in every run so far has been done by
-`FakeLlmClient`.
+is a genuine measurement and it caught a real defect (section 3), but it says
+nothing about extraction quality, because extraction in every run so far has been
+done by `FakeLlmClient`.
 
-**The measurement harness now exists and is verified end to end:**
+### Two datasets, because one could not answer the question
 
-- `eval/gold-extraction.tsv` — 99 hand-checked labels over 23 documents and 15 of
-  the 28 registered predicates. Each row records the sentence it was read from and
-  `GoldExtractionSetTest` asserts that sentence appears verbatim in that document,
-  so a fabricated label fails the build. The set is frozen.
-- `LlmExtractionEvaluationService` + `POST /api/llm-evaluation/extraction` — runs
-  the production extraction path (same prompt, same retry policy, same parser,
-  same validator) over every labelled chunk. Read-only: persists nothing, creates
-  no trace run.
-- `scripts/llm-eval.ps1` — writes a dated JSON report with provider, model, prompt
-  version, temperature, max tokens, gold-set size, timestamp, matching rule and
-  per-chunk outcomes.
+| | canonical | prose |
+|---|---|---|
+| File | `eval/gold-extraction.tsv` | `eval/prose-gold-v1.json` |
+| Version | frozen | `prose-gold-v1` |
+| Labels | 99 triples, 23 documents, 15/28 predicates | 40 triples, 46 claims, 81 labelled sentences, 10 documents, 19/28 predicates |
+| Negatives | none | **48 of 81 (59%)** |
+| Measures | transcription | **extraction from prose** |
+| Harness | `LlmExtractionEvaluationService` | `ProseExtractionEvaluationService` |
 
-Verified against the offline provider: triples P 0.9706 / R 1.0000 / F1 0.9851,
-claims P 0.3641 / R 0.6768 / F1 0.4735, malformed 0/23, quarantine 0/23. **These
-numbers describe a deterministic fixture and the pipeline around it, and say
-nothing about any model.**
+The prose set exists because the canonical one flatters any extractor: it states
+every fact as `Subject predicate Object`, so a model scores near 100% by pattern
+matching. The prose corpus is real sentences — pronouns, multi-clause, passive
+voice, negation, hedging, temporal statements, several relations per sentence,
+irrelevant information, and text shaped like instructions — with 59% of its
+labelled sentences stating that **nothing** should be extracted. Those negatives
+are what make precision observable.
 
-**What remains unknown, and must be treated as unknown:**
+Every label records the exact source sentence, and `ProseGoldSetTest` asserts that
+sentence appears in the document it is attributed to. That check immediately
+caught two fabricated details in my own labels, which is exactly the failure it
+exists to prevent: an invented word in a label silently depresses a model's
+measured recall and nothing in the resulting number looks wrong.
 
-- whether a real model produces well-formed JSON at the required schema rate;
-- how often it invents a source sentence (the grounding check rejects it, so the
-  rate is measurable but unmeasured);
-- extraction precision and recall against hand-labelled truth, on prose;
-- entity-resolution quality on real text — not measured at all, because resolving
-  entities means writing them, which would corrupt the corpus being measured;
-- agreement between machine verdicts and human verdicts. The seeded corpus
-  produces no `SUPPORTED` verdict from the offline provider, so there is no
-  positive class to score.
+### Measured, against the offline fixture
 
-There is also a **corpus** limitation that no amount of harness work fixes. The
-demo corpus states every extractable fact in canonical `Subject predicate Object`
-form and its prose is deliberately uninformative, so even a completed real-model
-run against it would measure transcription, not extraction from natural prose. A
-prose corpus has to exist before this limitation can be closed.
+| | canonical | prose |
+|---|---|---|
+| triples | P 0.9706 / R 1.0000 / F1 0.9851 | **P 0.0000 / R 0.0000 / F1 0.0000** |
+| claims | P 0.3641 / R 0.6768 / F1 0.4735 | **P 0.0000 / R 0.0000 / F1 0.0000** |
+| malformed | 0 of 23 | 0 of 41 |
+| quarantine | 0 of 23 | 0 of 41 |
+| ungrounded | not measured | 0 of 41 |
 
-PRISM's response to malformed output is designed and tested — parse, schema,
-semantics, then quarantine with a reason — but the *rate* at which a real model
-triggers it is unmeasured. A model that quarantines 40% of chunks would be a
-perfectly correct system and a useless one.
+**The prose zeroes are the correct result and the most useful number here.** The
+offline provider recognises only `Subject predicate Object` sentences, so pointed
+at prose it finds 14 incidental occurrences of a predicate word and gets every one
+wrong. That is the concrete demonstration that the canonical corpus was flattering
+the fixture, and it is why the prose corpus was written.
+
+**These describe a deterministic fixture and the pipeline around it. No model has
+been evaluated.**
+
+### The harness refuses to fake a result
+
+`requireRealModel=true` while the offline fixture is active returns HTTP 412 with
+the body token `REAL_MODEL_EXECUTION_REQUIRED`, and `scripts/llm-eval.ps1` exits
+**4**. Not a warning in the body — a distinct status and a distinct exit code, so a
+CI job cannot mistake "the harness refused" for "the harness passed". The token is
+asserted stable by a test, because a CI job greps for it.
+
+```bash
+powershell -File scripts/llm-eval.ps1 -Username <v> -Password '<p>' -CorpusId <prose-corpus> -Dataset prose -RequireRealModel
+```
+
+The prose corpus is loaded by `scripts/seed-prose-corpus.ps1`, which uploads
+through the real multipart endpoint so the real chunker and the real extraction
+path both run.
+
+### Still unknown, and must be treated as unknown
+
+- triple and claim precision/recall/F1 for any real model, on prose;
+- malformed-response and quarantine rates for a real model;
+- how often a real model invents a source sentence;
+- entity-resolution quality on real text — **not measured at all**, because
+  resolving entities means writing them, which would corrupt the corpus being
+  measured;
+- agreement between machine verdicts and human verdicts. The offline provider
+  produces no `SUPPORTED` verdict, so there is no positive class to score, and the
+  separate verification gold set was not built in this pass.
+
+The prose dataset is fictional prose written for the purpose. It contains no OCR
+noise, tables, homonyms, aliases or transliteration variants, all of which make
+real extraction harder. **Its figures are an upper bound, not a forecast**, and it
+is not a statistically representative sample of real documents.
 
 Until a real-provider run happens, no statement about model quality should be made
 from this repository's numbers.
@@ -291,24 +327,45 @@ questions, not passed checks.
 renders in OpenAPI as a bare `object`. That is why the frontend types were
 hand-written and why `scripts/contract-check.ps1` exists.
 
-Fixed so far: pagerank and communities now return typed records carrying the
-fields the UI was already rendering (they previously sent none of them, so the
-PageRank table showed three permanently blank columns and the communities table
-threw on `members.join`).
+Fixed:
+
+- PageRank and communities return typed records carrying the fields the UI was
+  already rendering. They previously sent none of them, so the PageRank table
+  showed three permanently blank columns and the communities table threw on
+  `members.join`.
+- **Every collection endpoint now returns one envelope.** There were three shapes
+  for one concept: `/api/documents` returned a bare array with the total
+  discarded, `/api/admin/users` hand-built a map with a different key set, and
+  quarantine used `{total, content}`. They all use `com.prism.common.PageResponse`
+  now — `content`, `page`, `size`, `totalElements`, `totalPages`, `hasNext`.
+  `DocumentService.list` returned `getContent()` and threw the total away, which
+  is precisely why `/api/documents` had none.
+- The quarantine listing is a typed `QuarantineRow` record rather than a map built
+  from string literals.
+
+**The admin page was broken by this and nobody noticed.** `AdminPage` called
+`adminApi.users()`, typed it `UserSummary[]`, and rendered `users.data.length`
+against a response with no `length`. It therefore showed "No users" and an empty
+table for every account, for everyone, always. `scripts/contract-check.ps1`
+reported 18/18 clean throughout, because `/api/admin/users` was not one of the
+endpoints it checked. The contract check now asserts the envelope for all three,
+and is status-aware so an ADMIN-gated endpoint returns a refusal to a VERIFIER
+run reports `skip` rather than six missing fields.
 
 Still untyped, and therefore still documented only as `object`: chat session
 detail, chat answer, verify-all, the approval queue, triples/claims/verdicts/
 contradictions/traces list responses, the trace detail and X-Ray views, argument
-weighting, synthesis receipts, the debate FSM, and admin list/status. The
-frontend types for these are verified against live JSON by the contract check, so
-they are known correct today — but they are not enforced by a schema, and a
-backend change would not be caught by the compiler.
+weighting, synthesis receipts, the debate FSM, and admin status. The frontend
+types for these are verified against live JSON by the contract check, so they are
+known correct today — but they are not enforced by a schema, and a backend change
+would not be caught by the compiler. `docs/api.md` has not been regenerated from
+the live schema.
 
-Phase 14 of the hardening plan covers the rest. It is not done.
+Spring Data's `Page` is deliberately never exposed. Its serialisation is unstable
+across versions and carries an internal `pageable` object, so a client binding to
+it couples itself to Spring.
 
 ---
-
-## 8. Features that cannot be demonstrated offline
 
 `VERIFIED_ONLY` graph scope returns no nodes with the offline provider, because
 no verdict is ever `SUPPORTED` (§1). A person evaluating this system offline
@@ -326,38 +383,56 @@ checking before concluding anything is broken.
 
 ---
 
+## 8. Features that cannot be demonstrated offline
+
+`VERIFIED_ONLY` graph scope returns no nodes with the offline provider, because
+no verdict is ever `SUPPORTED` (┬º1). A person evaluating this system offline
+cannot see the verified-only view populated.
+
+This is a gap in the demonstration, not in the logic: the scope correctly filters
+to triples backed by a settled `SUPPORTED` verdict, and there are none. The
+honest fix is a provider that can produce a `SUPPORTED` verdict when retrieved
+evidence genuinely supports a claim ÔÇö which is real-LLM territory, and therefore
+blocked on ┬º1.
+
+The same applies to any UI that reads as though the system found nothing, where
+the truth is that the offline provider found nothing. That distinction is worth
+checking before concluding anything is broken.
+
+---
+
 ## 9. Items in the hardening plan not reached
 
-For completeness, so the gap between this document and the plan is explicit:
+For completeness, so the gap between this document and the plan is explicit.
+Everything below is classified; nothing here is assumed.
 
 | Phase | State |
 |---|---|
-| 1 — repository audit | **Done.** 13 defects found and fixed; see the release report. |
-| 2 — predicate-aware query expansion | **Done**, with the `supply` regression recorded (§3). |
-| 3 — real LLM validation workflow | **Harness done, real-model execution not.** `eval/gold-extraction.tsv` (99 verified labels), `LlmExtractionEvaluationService`, `scripts/llm-eval.ps1`. Verified end-to-end against the offline provider. **No real model has been evaluated** (§1). |
-| 4 — expand retrieval gold set | **Not done**, deliberately (§2). The 11 hand-checked queries remain the frozen baseline. |
-| 5 — Testcontainers / CI | **Resolved** (§4). 6 migration integration tests run, 0 skipped. |
-| 6 — database contract audit | **Still open.** `ddl-auto: validate` plus the SQL cross-check in `architecture.md`. `validate` cannot detect an unmapped NOT NULL column — it was found by a runtime error, not by validation — so a dedicated schema contract check is still wanted and was **not** built in this pass. |
-| 7 — authentication hardening | **Decided and documented** (§5). |
-| 8 — SSE review | **Not done** (§6). |
-| 9 — security penetration pass | **Done.** 31 checks in `scripts/security-probe.ps1`; it found a cross-corpus data leak. Re-run green after this pass. |
-| 10 — prompt injection tests | **Done** at the deterministic layer (`PromptInjectionTest`, 9 tests). Model-level susceptibility is unmeasured (§1). |
-| 11 — failure recovery | **Partly done.** Provider timeout / 429 / 5xx / permanent-failure, retry bounds, backoff cap, and the malformed-response quarantine gate are now tested (`LlmFailureRecoveryTest`, 10 tests; `MalformedResponseQuarantineTest`, 11 tests). **Not tested:** database interruption mid-work, application restart during extraction or synthesis, duplicate extraction/approval/debate start, and concurrent debate advance. |
-| 12 — provenance audit | **Not done.** |
-| 13 — Glass Box audit | **Partly.** Found and fixed a trace-detail contract bug that made the Glass Box header render `Trace #undefined`. Replay-uses-stored-data not verified. |
-| 14 — API contract audit | **Partly** (§7). 18 endpoints agree in both directions; `docs/api.md` not regenerated from the live schema. Two pagination-shape inconsistencies found and not yet fixed. |
-| 15 — frontend integration audit | **Partly.** 18 endpoints verified by contract check; not exercised in a browser. |
-| 16 — performance baseline | **Not done.** No timings recorded. |
-| 17 — documentation | This file, plus updates to `README.md`, `api.md`, `evaluation.md`. |
-| 18 — final demo validation | **Done.** Corpus rebuilt from empty: 24 documents, 87 chunks, 58 triples approved, 6 verdicts, 10 contradictions, all 5 planted contradictions detected. |
-| 19 — clean-checkout release check | **Not done.** |
-| 20 — release decision | Reached. See the release report: **NOT RELEASE CANDIDATE**, on §1 alone. |
+| 1 - repository audit | **Done.** 13 defects found and fixed; see the release report. |
+| 2 - predicate-aware query expansion | **Done**, with the `supply` regression recorded (§3). |
+| 3 - real LLM validation workflow | **Harness done, real-model execution not.** Two datasets (`eval/gold-extraction.tsv` canonical, `eval/prose-gold-v1.json` prose), two harnesses (`LlmExtractionEvaluationService`, `ProseExtractionEvaluationService`), `scripts/llm-eval.ps1` and `scripts/seed-prose-corpus.ps1`. Both verified end to end against the offline provider. **No real model has been evaluated** (§1). |
+| 4 - expand retrieval gold set | **Not done**, deliberately (§2). The 11 hand-checked queries remain the frozen baseline. |
+| 5 - Testcontainers / CI | **Resolved** (§4). 6 migration integration tests run, 0 skipped. |
+| 6 - database contract audit | **Done this pass.** `SchemaContractChecker` compares the live schema against the JPA metamodel and flags an unmapped NOT NULL column with no default, a missing mapped column or table, a missing critical index and a missing critical foreign key. `contractCheckDetectsTheHistoricalDefect` recreates the real defect — a `NOT NULL` column with no default on `report_block_citations` — and proves the check fails. 29 tables, 374 columns, 364 mapped, 0 failures on the real schema. Flyway remains authoritative; Hibernate schema generation is still not used. |
+| 7 - authentication hardening | **Decided and documented** (§5). |
+| 8 - SSE review | **Not done** (§6). |
+| 9 - security penetration pass | **Partly.** 31 checks in `scripts/security-probe.ps1`; it found a cross-corpus data leak, now fixed. **Not done this pass:** the full per-resource cross-user and cross-corpus sweep across document, chunk, entity, triple, claim, verdict, contradiction, debate, report, chat session, trace run and trace step, including indirect access through search, retrieval, pagination and nested references. |
+| 10 - prompt injection tests | **Partly.** Deterministic layer done (`PromptInjectionTest`, 9 tests) and the prose gold set now carries labelled injection bait — an instruction-shaped string and an instruction-shaped paraphrase, both labelled `expectNothing`, both asserted to yield no triple. **Not done:** coverage extended to verification, debate, Skeptic, synthesis and chat. Model-level susceptibility is unmeasured (§1). |
+| 11 - failure recovery | **Partly.** Provider timeout / 429 / 5xx / permanent-failure, retry bounds, backoff cap, and the malformed-response quarantine gate are tested (`LlmFailureRecoveryTest`, 10 tests; `MalformedResponseQuarantineTest`, 11 tests). **Not tested:** database interruption mid-work, application restart during extraction or synthesis, duplicate extraction, duplicate approval, duplicate debate start, and concurrent debate advance. `RecoveryService` handles stale jobs and extraction runs by heartbeat with in-place requeue; that was read, not verified by a test. |
+| 12 - provenance audit | **Not done.** No trace was walked end to end against stored records this pass. |
+| 13 - Glass Box audit | **Partly.** Found and fixed a trace-detail contract bug that made the Glass Box header render `Trace #undefined`. **Replay-reads-stored-data is still not verified**: the experiment of recording a trace, changing relevant state, and confirming the replay still shows the historical execution was not run. |
+| 14 - API contract audit | **Partly** (§7). 20 endpoints agree in both directions as a verifier, plus the three new envelope assertions; `docs/api.md` still not regenerated from the live schema. The two pagination-shape inconsistencies are **fixed**. The broader `Map`-to-DTO conversion is not done. |
+| 15 - frontend integration audit | **Partly.** 20 endpoints verified by contract check; typecheck and production build clean; the admin page bug was found and fixed by the shape audit. **Not done:** the 30-step browser journey covering loading, empty, success, error, 401, 403, 404 and network failure. |
+| 16 - performance baseline | **Done this pass**, as a baseline only. See [`performance.md`](performance.md). No figure in it includes model latency, because no model has been evaluated. |
+| 17 - documentation | This file, plus `README.md`, `evaluation.md`, `performance.md`. `api.md` and `architecture.md` not updated. |
+| 18 - final demo validation | **Done.** Corpus rebuilt from empty: 24 documents, 87 chunks, 58 triples approved, 6 verdicts, 10 contradictions, all 5 planted contradictions detected. |
+| 19 - clean-checkout release check | **Not done this pass.** The working tree is clean and every check below was run against it, but not from a fresh clone. |
+| 20 - release decision | Reached. **NOT RELEASE CANDIDATE**, on §1 alone: `REAL_MODEL_EVALUATION_PENDING`. |
 
 ---
 
 ## 10. Standing constraints
 
-These are properties of the system, not gaps. They are listed so a reader does
 not have to infer them from the code.
 
 - **`fusedScore` is a ranking score, not a calibrated probability.** It orders
