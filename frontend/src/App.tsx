@@ -11,18 +11,18 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from './components/AppShell'
 import { AuthProvider, RequireRole, useAuth } from './auth/AuthContext'
+import { WelcomePage } from './pages/WelcomePage'
 import { CorpusProvider } from './corpus/CorpusContext'
 import { BootPage } from './pages/BootPage'
-import { LoginPage } from './pages/LoginPage'
 import { Empty, Loading } from './components/ui'
 
 // Every page is split out. The application has fourteen routes and a reviewer
 // typically uses three or four of them, so bundling the whole pipeline's UI into
 // the entry chunk would make the login screen wait on code it cannot use.
 //
-// BootPage and LoginPage stay eager: they are what an unauthenticated visitor
-// needs immediately, and code-splitting them would only add a round trip to the
-// first paint.
+// BootPage stays eager: it is what an unauthenticated visitor
+// needs immediately, and code-splitting it would only add a round trip to the
+// first paint. WelcomePage is the signed-out screen (hero + sign-in).
 const CorporaPage = lazy(() => import('./pages/CorporaPage').then((m) => ({ default: m.CorporaPage })))
 const DocumentsPage = lazy(() =>
   import('./pages/DocumentsPage').then((m) => ({ default: m.DocumentsPage })),
@@ -66,7 +66,7 @@ function AuthGate() {
   const { user, ready } = useAuth()
 
   if (!ready) return <BootPage />
-  if (!user) return <LoginPage />
+  if (!user) return <WelcomePage />
 
   return (
     <CorpusProvider>
