@@ -438,7 +438,7 @@ Everything below is classified; nothing here is assumed.
 | 16 - performance baseline | **Done this pass**, as a baseline only. See [`performance.md`](performance.md). No figure in it includes model latency, because no model has been evaluated. |
 | 17 - documentation | This file, plus `README.md`, `evaluation.md`, `performance.md`, `provenance-walk.md`. `api.md` regenerated from the live spec (74 operations, 66 paths; 23 endpoints marked **Untyped**); `architecture.md` updated for the envelope, the schema checker, and the prose harness. |
 | 18 - final demo validation | **Done.** Corpus rebuilt from empty: 24 documents, 87 chunks, 58 triples approved, 6 verdicts, 10 contradictions, all 5 planted contradictions detected. |
-| 19 - clean-checkout release check | **Not done yet at this writing.** The working tree is clean and every check below was run against it, but not from a fresh clone. Runs before the release decision below. |
+| 19 - clean-checkout release check | **Done.** Fresh clone of this commit: tree clean, backend 248/248 `BUILD SUCCESS`, frontend `npm ci` + production build clean, clone tree still clean afterwards. |
 | 20 - release decision | Reached. **NOT RELEASE CANDIDATE**, on §1 alone: `REAL_MODEL_EVALUATION_PENDING`. |
 
 ---
