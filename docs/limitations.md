@@ -468,3 +468,30 @@ not have to infer them from the code.
 - **Documents are never deleted.** Approved knowledge and the verdicts citing it
   depend on that provenance, so the endpoint refuses unconditionally for everyone,
   owner included, with a 409.
+
+## 11. The GitHub Pages deployment is the interface only
+
+`.github/workflows/pages.yml` publishes the frontend bundle to
+`https://chatur7x.github.io/Prism/`. That deployment cannot run PRISM.
+
+- **The reason is structural, not a missing step.** All state is owned by
+  deterministic Java and MySQL. A static host serves files and nothing else, so
+  the approval gate, the rule engines, the Council, the Glass Box and Flyway
+  schema creation are all absent there.
+- **The UI says so.** The build sets `VITE_STATIC_ONLY=true`, which renders a
+  banner naming the fact. No fixture data, no mocked responses and no
+  pretence that a request succeeded.
+- **Signing in there fails at the network layer** and the error shown is
+  `Could not reach the PRISM backend`. That is the correct outcome.
+- **Not demonstrated by that page:** any pipeline behaviour whatsoever. Every
+  measured figure in `docs/evaluation.md` comes from a locally running backend
+  against MySQL, never from this deployment.
+- **Deep links are not restored.** The emitted `404.html` redirects to the app
+  root, so a direct link to a page lands on the welcome screen. A redirect
+  target in `sessionStorage` would fix it and was judged not worth the boot-time
+  complexity for a deployment whose only reachable route is the welcome screen.
+- **The bundle is deployment-ready for a hosted API.** `VITE_API_BASE` is a
+  build variable; no source change is needed. Two conditions apply: the API
+  must be HTTPS, because a Pages page is HTTPS and browsers refuse
+  HTTPS-to-HTTP calls, and its origin must be added to `CORS_ALLOWED_ORIGINS`,
+  which rejects a wildcard by design.

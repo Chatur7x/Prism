@@ -265,3 +265,44 @@ table.data th.num,
     transition: none;
   }
 }
+
+/* Static-build notice.
+ *
+ * Appended to the premium layer rather than given a file of its own, keeping the
+ * "delete this file, get the previous look back exactly" property of this whole
+ * styling approach. Shown only for a build with VITE_STATIC_ONLY set, so it
+ * costs nothing in any normal deployment. */
+.static-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 10px var(--space-5);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-1);
+  background: color-mix(in srgb, #b8860b 12%, var(--surface-0));
+  border-bottom: 1px dashed color-mix(in srgb, #b8860b 55%, transparent);
+}
+.static-notice-tag {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, #b8860b 70%, transparent);
+  border-radius: 3px;
+  color: color-mix(in srgb, #b8860b 82%, var(--ink-1));
+  white-space: nowrap;
+}
+.static-notice a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+@media (max-width: 720px) {
+  .static-notice {
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+  }
+}

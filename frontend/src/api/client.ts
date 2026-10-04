@@ -20,6 +20,30 @@ import type { AuthResponse, AuthUser } from './types'
 const TOKEN_KEY = 'prism.token'
 const USER_KEY = 'prism.user'
 
+/**
+ * Absolute origin of the PRISM API, or empty for same-origin.
+ *
+ * Empty in every deployment the backend is designed for: the Vite dev proxy,
+ * and nginx in `docker/nginx/prism-frontend.conf`. It is only set when the
+ * bundle is served from a different origin than the API — a static host such as
+ * GitHub Pages — and in that case the backend's CORS allow-list must name the
+ * bundle's origin explicitly, because `WebSecurityConfig` rejects a wildcard.
+ */
+const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/+$/, '')
+
+/**
+ * True when this bundle was built for a static host with no backend attached.
+ *
+ * The UI states that plainly instead of letting an unreachable API look like a
+ * defect. Nothing is faked to make the static build appear functional.
+ */
+export const STATIC_ONLY = import.meta.env.VITE_STATIC_ONLY === 'true'
+
+/** Resolves an API path against {@link API_BASE}. */
+export function apiUrl(path: string): string {
+  return API_BASE + path
+}
+
 export interface ApiViolation {
   field: string
   message: string
@@ -140,7 +164,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   let response: Response
   try {
-    response = await fetch(path, {
+    response = await fetch(apiUrl(path), {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),

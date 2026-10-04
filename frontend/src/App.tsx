@@ -11,6 +11,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from './components/AppShell'
 import { AuthProvider, RequireRole, useAuth } from './auth/AuthContext'
+import { StaticNotice } from './components/StaticNotice'
 import { WelcomePage } from './pages/WelcomePage'
 import { CorpusProvider } from './corpus/CorpusContext'
 import { BootPage } from './pages/BootPage'
@@ -65,9 +66,16 @@ const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default:
 function AuthGate() {
   const { user, ready } = useAuth()
 
-  if (!ready) return <BootPage />
-  if (!user) return <WelcomePage />
+  return (
+    <>
+      <StaticNotice />
+      {ready ? (user ? <Authenticated /> : <WelcomePage />) : <BootPage />}
+    </>
+  )
+}
 
+/** Everything behind the auth gate: corpus scope, shell, and the routes. */
+function Authenticated() {
   return (
     <CorpusProvider>
       <AppShell>

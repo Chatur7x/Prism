@@ -104,6 +104,40 @@ npm install
 npm run dev
 ```
 
+### The website on GitHub Pages
+
+`.github/workflows/pages.yml` publishes the built bundle to
+<https://chatur7x.github.io/Prism/> on every push that touches `frontend/`.
+
+**It serves the interface, not the system.** Every piece of state in PRISM is
+owned by the Spring backend and MySQL, and a static host runs neither, so the
+deployment ships with `VITE_STATIC_ONLY=true` and the UI says so in a banner.
+Signing in from that page fails at the network layer, and that failure is the
+truthful outcome rather than a bug to hide.
+
+To point the same bundle at a real backend, host the API somewhere reachable
+(HTTPS — a Pages page is HTTPS, and a browser will not let it call an HTTP
+origin), add that origin to the backend's `CORS_ALLOWED_ORIGINS` (it rejects a
+wildcard by design), and build with:
+
+```bash
+cd frontend
+VITE_BASE_PATH=/Prism/ VITE_API_BASE=https://your-api.example npm run build
+```
+
+`VITE_BASE_PATH` is the public path of the bundle; it is `/` for a
+root-served deployment and `/Prism/` for project pages. `VITE_API_BASE` is
+empty in every same-origin deployment, which is why the dev server and the
+nginx configuration need neither.
+
+Two details worth knowing. The build emits a `404.html` from
+`frontend/vite.config.ts` with the base path interpolated from the resolved
+config, so the SPA fallback cannot drift out of sync with the bundle; deep links
+on that host land on the welcome screen rather than restoring their route. And
+Pages must be switched on once in the repository settings
+(**Settings → Pages → Source: GitHub Actions**) before the first run can
+publish.
+
 ### LLM providers
 
 `LLM_PROVIDER=fake` runs the whole pipeline offline against a deterministic
