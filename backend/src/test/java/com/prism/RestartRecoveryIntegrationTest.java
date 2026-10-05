@@ -56,6 +56,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -312,6 +313,61 @@ class RestartRecoveryIntegrationTest {
         assertThat(documents.findById(advanced.getId()).orElseThrow().getStatus())
                 .as("a document that moved on must not be dragged back")
                 .isEqualTo(DocumentStatus.READY);
+    }
+
+    // ---- latest-run lookup -----------------------------------------------------
+
+    @Test
+    @DisplayName("a reprocessed document's latest run is found, not an ambiguous pair")
+    void latestExtractionRunIsFoundAfterReprocess() {
+        // The production incident: the first run hit the unique-key race and
+        // failed, then POST /api/documents/{id}/reprocess created a second one.
+        // The progress endpoint then called findByDocumentIdOrderByIdDesc, which
+        // sorts by id descending and returns Optional -- so Spring Data issued
+        // getSingleResult() and threw NonUniqueResultException. A 500 on the
+        // progress of a document being reprocessed, which is precisely when
+        // someone is watching it.
+        //
+        // The sequence matters, and the schema enforces it: there is a unique
+        // key extraction_runs.uk_extraction_document_live that permits only one
+        // live run per document. The first run must therefore reach a terminal
+        // state before the second can exist at all. Modelling that is what makes
+        // this the real scenario rather than an impossible one -- an earlier
+        // draft of this test created two PENDING runs and the database correctly
+        // refused.
+        ExtractionRun first = extractionRuns.save(new ExtractionRun(document, 1,
+                "EXTRACT_V1", "fake"));
+        first.markFailed("unique-key race", Instant.now());
+        extractionRuns.saveAndFlush(first);
+
+        ExtractionRun second = extractionRuns.save(new ExtractionRun(document, 1,
+                "EXTRACT_V1", "fake"));
+        extractionRuns.flush();
+        assertThat(second.getId()).isGreaterThan(first.getId());
+        assertThat(extractionRuns.findAll())
+                .as("both runs must coexist: that is what makes the lookup ambiguous")
+                .hasSizeGreaterThanOrEqualTo(2);
+
+        Optional<ExtractionRun> latest =
+                extractionRuns.findFirstByDocumentIdOrderByIdDesc(document.getId());
+
+        assertThat(latest)
+                .as("a failed run plus its replacement is a normal state, not an error")
+                .isPresent();
+        assertThat(latest.get().getId())
+                .as("progress must describe the run that is actually current")
+                .isEqualTo(second.getId());
+    }
+
+    @Test
+    @DisplayName("a document with no run reports none rather than failing")
+    void latestExtractionRunIsEmptyWhenNeverRun() {
+        Document untouched = documents.save(new Document(corpus, verifier, "never " + tag,
+                "text", "never-" + tag + ".md", "text/markdown", "nhash-" + tag));
+
+        assertThat(extractionRuns.findFirstByDocumentIdOrderByIdDesc(untouched.getId()))
+                .as("no run yet is a normal state, not an error")
+                .isEmpty();
     }
 
     // ---- duplicate approval ----------------------------------------------------

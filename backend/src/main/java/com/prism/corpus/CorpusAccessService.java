@@ -49,7 +49,7 @@ public class CorpusAccessService {
      */
     @Transactional(readOnly = true)
     public Corpus requireAccessible(Long corpusId, Long userId) {
-        Corpus corpus = corpora.findById(corpusId)
+        Corpus corpus = corpora.findByIdWithOwner(corpusId)
                 .orElseThrow(() -> ApiException.notFound("Corpus", corpusId));
         if (userId == null) {
             throw ApiException.accessDenied("Authentication required");
@@ -72,7 +72,7 @@ public class CorpusAccessService {
 
     @Transactional(readOnly = true)
     public List<Corpus> listAccessible(Long userId) {
-        return isAdmin(userId) ? corpora.findAll().stream().filter(Corpus::isActive).toList()
+        return isAdmin(userId) ? corpora.findAllWithOwner().stream().filter(Corpus::isActive).toList()
                 : corpora.findActiveByOwner(userId);
     }
 

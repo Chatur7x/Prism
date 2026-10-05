@@ -11,7 +11,20 @@ import java.util.Optional;
 
 public interface ExtractionRunRepository extends JpaRepository<ExtractionRun, Long> {
 
-    Optional<ExtractionRun> findByDocumentIdOrderByIdDesc(Long documentId);
+    /**
+     * The most recent extraction run for a document, or empty if it never ran.
+     *
+     * <p><b>{@code findFirst} is load-bearing, not decoration.</b> Declared as
+     * plain {@code findByDocumentIdOrderByIdDesc} with an {@code Optional} return
+     * type, Spring Data sorts by id descending and then demands
+     * {@code getSingleResult()} — which throws
+     * {@code NonUniqueResultException} the moment a second run exists. A
+     * document gets a second run every time {@code /reprocess} is called, so
+     * that combination made the progress endpoint return 500 for every document
+     * that had ever been reprocessed. The method name promised "the latest" and
+     * the query did not deliver it.
+     */
+    Optional<ExtractionRun> findFirstByDocumentIdOrderByIdDesc(Long documentId);
 
     Optional<ExtractionRun> findFirstByDocumentIdAndStatusInOrderByIdDesc(Long documentId,
                                                                          List<ExtractionStatus> statuses);

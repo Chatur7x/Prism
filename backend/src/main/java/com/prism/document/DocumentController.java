@@ -167,7 +167,7 @@ public class DocumentController {
         Long userId = access.requireCurrentUserId();
         Document document = documents.get(userId, id);
         long chunkCount = documents.chunksOf(userId, id).size();
-        ExtractionRun run = runs.findByDocumentIdOrderByIdDesc(id).orElse(null);
+        ExtractionRun run = runs.findFirstByDocumentIdOrderByIdDesc(id).orElse(null);
         long quarantined = run == null ? 0 : quarantine.countByRunId(run.getId());
 
         java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();

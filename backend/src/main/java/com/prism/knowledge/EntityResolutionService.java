@@ -3,7 +3,9 @@ package com.prism.knowledge;
 import com.prism.common.error.ApiException;
 import com.prism.corpus.Corpus;
 import com.prism.document.DocumentChunk;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -85,11 +87,36 @@ public class EntityResolutionService {
             return store.findById(aliasHit.get().entityId());
         }
 
-        // 3. New identity. insertIfAbsent returns empty when a concurrent worker
-        //    won the unique-key race, in which case its row is adopted.
-        Optional<EntityStoreService.Snapshot> created = store.insertIfAbsent(corpusId,
-                EntityNormalizer.normalizeDisplay(surfaceForm), key, sourceChunkId, Instant.now());
-        return created.isPresent() ? created : store.findByKey(corpusId, key);
+        // 3. New identity. Losing the insert race is expected and is not an error.
+        //
+        //    insertIfAbsent cannot absorb the loss by itself. Its @Transactional
+        //    (REQUIRES_NEW) method catches DataIntegrityViolationException, but
+        //    catching it there is dead code: the constraint violation has already
+        //    marked that transaction rollback-only, so Spring throws
+        //    UnexpectedRollbackException at the proxy boundary when the method
+        //    returns. The catch never gets to run, and the race propagated out
+        //    and failed the whole extraction job.
+        //
+        //    That is not hypothetical. Two documents in one corpus mentioning the
+        //    same entity, extracted concurrently, is the normal case rather than
+        //    an edge case -- it killed an entire PDF ingestion run on first
+        //    contact with a corpus that shared one entity across documents.
+        //
+        //    The handler therefore lives *here*, on the caller side, and this
+        //    method is deliberately not transactional (see the class javadoc).
+        //    That is what makes the recovery possible: the read below runs in a
+        //    clean transaction, because no poisoned transaction is still active.
+        try {
+            Optional<EntityStoreService.Snapshot> created = store.insertIfAbsent(corpusId,
+                    EntityNormalizer.normalizeDisplay(surfaceForm), key, sourceChunkId, Instant.now());
+            if (created.isPresent()) {
+                return created;
+            }
+        } catch (UnexpectedRollbackException | DataIntegrityViolationException lost) {
+            // A concurrent worker created this identity between step 1 and the
+            // insert. Adopt its row rather than failing the document.
+        }
+        return store.findByKey(corpusId, key);
     }
 
     private record AliasHit(Long entityId, Long aliasId) {
