@@ -49,13 +49,14 @@ export function VerdictDetailPage() {
   // The corpus selector is deliberately not consulted. A verdict is addressed by
   // its own id and the backend re-checks access against that verdict's corpus, so
   // a link to a verdict stays valid even if the current selection is elsewhere.
-  const [verdict, setVerdict] = useState<VerdictType>('SUPPORTED')
+  const [verdict, setVerdict] = useState<VerdictType | ''>('')
   const [note, setNote] = useState('')
 
   const detail = useAsync(() => verificationApi.verdict(verdictId), [verdictId])
   const history = useAsync(() => verificationApi.history(verdictId), [verdictId])
 
   const adjudicate = useAction(async () => {
+    if (!verdict) return
     const updated = await verificationApi.adjudicate(verdictId, verdict, note)
     setNote('')
     detail.reload()
@@ -66,11 +67,11 @@ export function VerdictDetailPage() {
   const canVerify = user?.role === 'VERIFIER' || user?.role === 'ADMIN'
   const v = detail.data
 
-  if (detail.error != null) return <ErrorState error={detail.error} />
   if (detail.loading || !v) return <Loading label="Loading verdict" />
 
   return (
     <>
+      {detail.error != null && <ErrorState error={detail.error} />}
       <PageHeader
         title="Verdict"
         subtitle={
@@ -190,8 +191,8 @@ export function VerdictDetailPage() {
               </Empty>
             ) : (
               <div className="stack tight">
-                {v.evidence.map((passage) => (
-                  <div className="evidence" key={passage.chunkId}>
+                {v.evidence.map((passage, index) => (
+                  <div className="evidence" key={`${passage.chunkId}-${index}`}>
                     {passage.chunkText}
                     <div className="evidence-meta">
                       <span>rank {passage.retrievalRank}</span>
@@ -237,7 +238,7 @@ export function VerdictDetailPage() {
                       </option>
                     ))}
                   </select>
-                  <span className="field-hint">{VERDICT_MEANING[verdict]}</span>
+                  <span className="field-hint">{verdict ? VERDICT_MEANING[verdict] : 'Select a verdict type above'}</span>
                 </div>
                 <div className="field">
                   <label className="field-label" htmlFor="adjudication-note">
@@ -255,7 +256,7 @@ export function VerdictDetailPage() {
                 <button
                   className="btn primary"
                   onClick={() => void adjudicate.run()}
-                  disabled={adjudicate.pending}
+                  disabled={adjudicate.pending || !verdict}
                 >
                   {adjudicate.pending && <span className="spinner" aria-hidden="true" />} Record
                   decision
@@ -266,6 +267,7 @@ export function VerdictDetailPage() {
 
           <Card title="Superseded machine verdicts">
             {history.loading && <Loading />}
+            {history.error != null && <ErrorState error={history.error} />}
             {history.data && history.data.length === 0 && (
               <Empty title="No history">
                 This claim has been verified once. Re-verifying moves the prior result here rather

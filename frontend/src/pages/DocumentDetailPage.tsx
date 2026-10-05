@@ -236,6 +236,7 @@ export function DocumentDetailPage() {
       <div style={{ marginTop: 'var(--space-4)' }}>
         <Card title="Source text">
           {content.loading && <Loading />}
+          {content.error != null && <ErrorState error={content.error} />}
           {content.data && (
             <pre
               className="tiny"

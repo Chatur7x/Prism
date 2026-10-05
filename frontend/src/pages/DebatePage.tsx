@@ -58,7 +58,7 @@ const PERSONA_TONE: Record<Persona, string> = {
 }
 
 /** States in which the chair may still act. */
-const CHAIRABLE = new Set(['AWAITING_CHAIR', 'COMPLETED'])
+const CHAIRABLE = new Set(['AWAITING_CHAIR'])
 
 export function DebatePage() {
   const { id } = useParams<{ id: string }>()
@@ -66,7 +66,7 @@ export function DebatePage() {
   const { reload: reloadCorpora } = useCorpus()
 
   const debate = useAsync(() => debateApi.get(debateId), [debateId])
-  const fsm = useAsync(() => debateApi.fsm(), [])
+  const fsm = useAsync(() => debateApi.fsm(), [debateId])
   const [events, setEvents] = useState<DebateEvent[]>([])
   const [streamState, setStreamState] = useState<'connecting' | 'open' | 'closed' | 'error'>('connecting')
   const [draftWeights, setDraftWeights] = useState<Record<number, number>>({})
@@ -150,7 +150,10 @@ export function DebatePage() {
             <StatusBadge value={council.state} />{' '}
             <span className="muted">
               round {council.currentRound} of {council.maxRounds} · chaired by {council.chair} ·{' '}
-              {allArguments.filter((a: Argument) => a.failed).length} failed argument(s)
+              {(() => {
+                const count = allArguments.filter((a: Argument) => a.failed).length
+                return `${count} failed argument${count !== 1 ? 's' : ''}`
+              })()}
             </span>
           </>
         }
@@ -167,6 +170,8 @@ export function DebatePage() {
               disabled={
                 advance.pending ||
                 council.state === 'CREATED' ||
+                council.state === 'ROUND_ACTIVE' ||
+                council.state === 'SYNTHESIZING' ||
                 council.state === 'COMPLETED' ||
                 council.state === 'ABORTED'
               }
@@ -188,6 +193,8 @@ export function DebatePage() {
       {advance.error != null && <ErrorState error={advance.error} />}
       {synthesize.error != null && <ErrorState error={synthesize.error} />}
       {weight.error != null && <ErrorState error={weight.error} />}
+      {abort.error != null && <ErrorState error={abort.error} />}
+      {fsm.error != null && <ErrorState error={fsm.error} />}
 
       {council.state === 'CREATED' && (
         <Alert kind="info">
@@ -228,8 +235,8 @@ export function DebatePage() {
               </Empty>
             ) : (
               <div className="stream">
-                {events.map((event, index) => (
-                  <div className="stream-row" key={index}>
+                {events.map((event) => (
+                  <div className="stream-row" key={`${event.at}-${event.type}`}>
                     <span className="tiny mono nowrap">{event.at}</span>
                     <span className="stream-type">{String(event.type).replace(/_/g, ' ').toLowerCase()}</span>
                     <span className="tiny">{event.message}</span>
@@ -370,6 +377,12 @@ function ArgumentCard({
   onSubmit: () => void
   pending: boolean
 }) {
+  const initialWeight = argument.chairWeight ?? 3
+  const [isDirty, setIsDirty] = useState(false)
+  const handleWeightChange = (value: number) => {
+    onDraftWeight(value)
+    setIsDirty(value !== initialWeight)
+  }
   return (
     <div className={`argument persona-${argument.persona.toLowerCase()}`}>
       <div className="argument-head">
@@ -436,11 +449,11 @@ function ArgumentCard({
             max={5}
             step={1}
             value={draftWeight}
-            onChange={(e) => onDraftWeight(Number(e.target.value))}
+            onChange={(e) => handleWeightChange(Number(e.target.value))}
             style={{ flex: 1 }}
           />
           <span className="badge neutral">{draftWeight}</span>
-          <button className="btn sm" onClick={onSubmit} disabled={pending}>
+          <button className="btn sm" onClick={onSubmit} disabled={pending || !isDirty}>
             Record
           </button>
         </div>
