@@ -8,10 +8,12 @@
  * on rules, on a model, or on a person.
  */
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { traceApi } from '../api/endpoints'
 import type { ActorType, TraceStepView, XRayNode } from '../api/types'
+import ReplayPlayer from '../components/ReplayPlayer'
 import {
   ActorBadge,
   Alert,
@@ -41,7 +43,11 @@ const ACTOR_EXPLANATION: Record<ActorType, string> = {
 export function TraceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const runId = Number(id)
-  const [view, setView] = useState<'tree' | 'xray'>('tree')
+  const [view, setView] = useState<'tree' | 'xray' | 'replay'>('tree')
+  // Which step the replay is currently on. Lives here rather than inside
+  // ReplayPlayer so the tree can highlight the same step, so flipping back to
+  // "Step tree" mid-replay does not lose the reader's place.
+  const [selectedStepId, setSelectedStepId] = useState<number | null>(null)
 
   const run = useAsync(() => traceApi.get(runId), [runId])
   const xray = useAsync(() => traceApi.xray(runId), [runId])
@@ -109,6 +115,9 @@ export function TraceDetailPage() {
         <button className={view === 'xray' ? 'btn sm primary' : 'btn sm'} onClick={() => setView('xray')}>
           X-Ray by actor
         </button>
+        <button className={view === 'replay' ? 'btn sm primary' : 'btn sm'} onClick={() => setView('replay')}>
+          Replay
+        </button>
       </div>
 
       {view === 'tree' && (
@@ -137,7 +146,14 @@ export function TraceDetailPage() {
             ) : (
               <div className="tree">
                 {roots.map((step) => (
-                  <TreeNode key={step.id} step={step} depth={0} byId={byId} childrenOf={childrenOf} />
+                  <TreeNode
+                    key={step.id}
+                    step={step}
+                    depth={0}
+                    byId={byId}
+                    childrenOf={childrenOf}
+                    currentStepId={selectedStepId}
+                  />
                 ))}
               </div>
             )}
@@ -210,7 +226,127 @@ export function TraceDetailPage() {
             })}
         </>
       )}
+
+      {view === 'replay' && (
+        <>
+          {steps.length === 0 ? (
+            <Empty title="No steps recorded for this run." />
+          ) : (
+            <div
+              className="grid"
+              style={{ gridTemplateColumns: '1fr 340px', gap: 'var(--space-4)' }}
+            >
+              <Card title="Replay">
+                {/* Keyed on the run so switching runs resets the player to the
+                    first step rather than keeping a stale index. */}
+                <ReplayPlayer
+                  key={r.id}
+                  steps={steps}
+                  onStep={(stepId) => setSelectedStepId(stepId)}
+                />
+                <Alert kind="info">
+                  Replay steps the run in recorded order and shows only what the system logged —
+                  system events, never hidden reasoning.
+                </Alert>
+              </Card>
+
+              <StepDetailCard stepId={selectedStepId} byId={byId} />
+            </div>
+          )}
+        </>
+      )}
     </>
+  )
+}
+
+/**
+ * The step currently under the replay cursor, in full.
+ *
+ * <p>Every field here is something the system recorded at execution time: the
+ * actor, the event, timings, attribution, and the input/output summaries. There
+ * is deliberately no field for a model's private reasoning — that is not in the
+ * trace and this page must not imply it is.
+ */
+function StepDetailCard({
+  stepId,
+  byId,
+}: {
+  stepId: number | null
+  byId: Map<number, TraceStepView>
+}) {
+  // Before the reader touches the player it has not reported a step yet, so fall
+  // back to the first step by sequence — the same one the player is showing.
+  // `byId` is rebuilt each render upstream, so this is a plain scan, not a memo.
+  const fallback = (() => {
+    let first: TraceStepView | undefined
+    for (const step of byId.values()) {
+      if (first === undefined || step.seq < first.seq) first = step
+    }
+    return first
+  })()
+
+  const step = (stepId === null ? undefined : byId.get(stepId)) ?? fallback
+
+  if (step === undefined) {
+    return (
+      <Card title="Step detail">
+        <Empty title="No step selected." />
+      </Card>
+    )
+  }
+
+  const rows: [ReactNode, ReactNode][] = [
+    ['Sequence', <span className="mono">{step.seq}</span>],
+    ['Event', <span className="mono">{step.eventType}</span>],
+    ['Actor', <ActorBadge actor={step.actorType} />],
+    ['Status', <StatusBadge value={step.status} />],
+    ['Duration', step.durationMs != null ? formatDuration(step.durationMs) : '—'],
+    ['Recorded', formatDate(step.createdAt)],
+  ]
+
+  if (step.model !== undefined) rows.push(['Model', <span className="mono">{step.model}</span>])
+  if (step.ruleVersion !== undefined) {
+    rows.push(['Rule version', <span className="mono">{step.ruleVersion}</span>])
+  }
+  if (step.promptVersion !== undefined) {
+    rows.push(['Prompt version', <span className="mono">{step.promptVersion}</span>])
+  }
+  if (step.attempt !== undefined) rows.push(['Attempt', step.attempt])
+
+  return (
+    <Card title="Step detail">
+      <KeyValue rows={rows} />
+
+      {step.inputSummary != null && (
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <div className="tiny muted">input</div>
+          <div className="tiny" style={{ whiteSpace: 'pre-wrap' }}>
+            {step.inputSummary}
+          </div>
+        </div>
+      )}
+      {step.inputReferenceIds != null && (
+        <div className="tiny muted mono">input refs: {step.inputReferenceIds}</div>
+      )}
+
+      {step.outputSummary != null && (
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          <div className="tiny muted">output</div>
+          <div className="tiny" style={{ whiteSpace: 'pre-wrap' }}>
+            {step.outputSummary}
+          </div>
+        </div>
+      )}
+      {step.outputReferenceIds != null && (
+        <div className="tiny muted mono">output refs: {step.outputReferenceIds}</div>
+      )}
+
+      {step.errorMessage != null && step.errorMessage !== '' && (
+        <Alert kind="error">
+          <span className="tiny">{step.errorMessage}</span>
+        </Alert>
+      )}
+    </Card>
   )
 }
 
@@ -219,18 +355,28 @@ function TreeNode({
   depth,
   byId,
   childrenOf,
+  currentStepId,
 }: {
   step: TraceStepView
   depth: number
   byId: Map<number, TraceStepView>
   childrenOf: (id: number) => TraceStepView[]
+  currentStepId: number | null
 }) {
   const [open, setOpen] = useState(depth < 2)
   const kids = childrenOf(step.id)
+  const isCurrent = currentStepId === step.id
 
   return (
     <div>
-      <div className={`tree-row depth-${Math.min(depth, 6)}`}>
+      <div
+        className={`tree-row depth-${Math.min(depth, 6)}${isCurrent ? ' current' : ''}`}
+        aria-current={isCurrent ? 'step' : undefined}
+        // No `.current` rule exists in the stylesheet yet; the class is the hook
+        // for one, and this inline background makes the replay position visible
+        // today without touching CSS.
+        style={isCurrent ? { background: 'var(--accent-soft)' } : undefined}
+      >
         <button
           className="btn ghost sm"
           onClick={() => setOpen(!open)}
@@ -279,7 +425,14 @@ function TreeNode({
 
       {open &&
         kids.map((kid) => (
-          <TreeNode key={kid.id} step={kid} depth={depth + 1} byId={byId} childrenOf={childrenOf} />
+          <TreeNode
+            key={kid.id}
+            step={kid}
+            depth={depth + 1}
+            byId={byId}
+            childrenOf={childrenOf}
+            currentStepId={currentStepId}
+          />
         ))}
     </div>
   )

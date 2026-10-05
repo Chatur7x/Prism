@@ -16,7 +16,7 @@
  * </ol>
  */
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { debateApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
@@ -203,7 +203,7 @@ export function DebatePage() {
       )}
       {council.state === 'COMPLETED' && (
         <Alert kind="ok">
-          This Council has concluded. The report is under <a href="/reports">Synthesis reports</a>.
+          This Council has concluded. The report is under <Link to="/reports">Synthesis reports</Link>.
         </Alert>
       )}
       {council.lastError && <Alert kind="error">{council.lastError}</Alert>}
@@ -253,7 +253,7 @@ export function DebatePage() {
             <div className="btn-row" style={{ marginTop: 'var(--space-3)' }}>
               <button
                 className="btn ghost sm"
-                onClick={reloadDebate}
+                onClick={() => void abort.run()}
                 disabled={council.state === 'COMPLETED' || council.state === 'ABORTED'}
               >
                 Abort

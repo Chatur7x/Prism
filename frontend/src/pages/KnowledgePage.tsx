@@ -6,7 +6,8 @@
  * alongside trusted knowledge without distinction would misrepresent what the
  * system actually holds.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { knowledgeApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
@@ -16,6 +17,8 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  Pager,
+  SearchInput,
   Stat,
   StatusBadge,
   formatDate,
@@ -27,22 +30,39 @@ type Tab = 'triples' | 'claims' | 'entities'
 export function KnowledgePage() {
   const { selected } = useCorpus()
   const [tab, setTab] = useState<Tab>('triples')
-  const [entitySearch, setEntitySearch] = useState('')
+
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
+  const gotoPage = (next: number) =>
+    setParams(next <= 0 ? {} : { page: String(next) }, { replace: true })
+  const corpusId = selected?.id
+  const prevCorpus = useRef(corpusId)
+  useEffect(() => {
+    if (prevCorpus.current !== corpusId) {
+      prevCorpus.current = corpusId
+      if (page !== 0) setParams({}, { replace: true })
+    }
+  }, [corpusId, page, setParams])
+  const switchTab = (next: Tab) => {
+    setTab(next)
+    if (page !== 0) setParams({}, { replace: true })
+  }
 
   const triples = useAsync(
-    () => (selected ? knowledgeApi.triples(selected.id, 'APPROVED') : Promise.resolve(null)),
-    [selected?.id],
+    () => (selected ? knowledgeApi.triples(selected.id, 'APPROVED', page) : Promise.resolve(null)),
+    [selected?.id, page],
   )
   const claims = useAsync(
-    () => (selected ? knowledgeApi.claims(selected.id, 'APPROVED') : Promise.resolve(null)),
-    [selected?.id],
+    () => (selected ? knowledgeApi.claims(selected.id, 'APPROVED', page) : Promise.resolve(null)),
+    [selected?.id, page],
   )
+  const [entityQuery, setEntityQuery] = useState('')
   const entities = useAsync(
     () =>
       selected
-        ? knowledgeApi.entities(selected.id, entitySearch || undefined)
+        ? knowledgeApi.entities(selected.id, entityQuery || undefined)
         : Promise.resolve([]),
-    [selected?.id, entitySearch],
+    [selected?.id, entityQuery],
   )
 
   if (!selected) {
@@ -72,7 +92,7 @@ export function KnowledgePage() {
           <button
             key={key}
             className={tab === key ? 'btn sm primary' : 'btn sm'}
-            onClick={() => setTab(key)}
+            onClick={() => switchTab(key)}
           >
             {key === 'triples' ? 'Triples' : key === 'claims' ? 'Claims' : 'Entities'}
           </button>
@@ -131,6 +151,13 @@ export function KnowledgePage() {
                   </tbody>
                 </table>
               </div>
+              <Pager
+                page={page}
+                totalPages={Math.ceil(triples.data.total / (triples.data.size || 50))}
+                total={triples.data.total}
+                onPrev={() => gotoPage(page - 1)}
+                onNext={() => gotoPage(page + 1)}
+              />
             </>
           )}
         </Card>
@@ -146,37 +173,46 @@ export function KnowledgePage() {
             </Empty>
           )}
           {claims.data && claims.data.total > 0 && (
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Subject</th>
-                    <th>Claim</th>
-                    <th>Polarity</th>
-                    <th>Status</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {claims.data.content.map((c) => (
-                    <tr key={c.id}>
-                      <td>
-                        <strong>{c.subject}</strong>
-                      </td>
-                      <td style={{ maxWidth: 420 }}>{c.claimText}</td>
-                      <td className="tiny">{c.polarity.toLowerCase()}</td>
-                      <td>
-                        <StatusBadge value={c.status} />
-                      </td>
-                      <td className="tiny muted">
-                        {c.sourceDocumentTitle}
-                        <br />chunk {c.sourceChunkId}
-                      </td>
+            <>
+              <div className="table-wrap">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th>Claim</th>
+                      <th>Polarity</th>
+                      <th>Status</th>
+                      <th>Source</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {claims.data.content.map((c) => (
+                      <tr key={c.id}>
+                        <td>
+                          <strong>{c.subject}</strong>
+                        </td>
+                        <td style={{ maxWidth: 420 }}>{c.claimText}</td>
+                        <td className="tiny">{c.polarity.toLowerCase()}</td>
+                        <td>
+                          <StatusBadge value={c.status} />
+                        </td>
+                        <td className="tiny muted">
+                          {c.sourceDocumentTitle}
+                          <br />chunk {c.sourceChunkId}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pager
+                page={page}
+                totalPages={Math.ceil(claims.data.total / (claims.data.size || 50))}
+                total={claims.data.total}
+                onPrev={() => gotoPage(page - 1)}
+                onNext={() => gotoPage(page + 1)}
+              />
+            </>
           )}
         </Card>
       )}
@@ -185,11 +221,11 @@ export function KnowledgePage() {
         <Card
           title="Resolved entities"
           actions={
-            <input
+            <SearchInput
+              value={entityQuery}
+              onChange={(value) => setEntityQuery(value)}
               placeholder="Filter by name"
-              value={entitySearch}
-              onChange={(e) => setEntitySearch(e.target.value)}
-              style={{ width: 240 }}
+              label="Search entities"
             />
           }
           flush

@@ -371,6 +371,262 @@ export function formatScore(value: number | null | undefined): string {
   return value.toFixed(3)
 }
 
+// ---- collections ----------------------------------------------------------
+
+/**
+ * One pager for the four backend envelopes. Pages compute `page` (0-based),
+ * `totalPages` (when the envelope carries a total) and `hasNext` (when it
+ * does not), and pass navigation callbacks. No silent truncation: a list
+ * with more data always shows a way forward.
+ */
+export function Pager({
+  page,
+  totalPages,
+  hasNext,
+  total,
+  onPrev,
+  onNext,
+}: {
+  page: number
+  totalPages?: number | null
+  hasNext?: boolean
+  total?: number | null
+  onPrev: () => void
+  onNext: () => void
+}) {
+  const canPrev = page > 0
+  const canNext = totalPages != null ? page + 1 < totalPages : (hasNext ?? false)
+  if (!canPrev && !canNext && total == null) return null
+  return (
+    <div className="pager" role="navigation" aria-label="Pagination">
+      <button className="btn sm" onClick={onPrev} disabled={!canPrev} aria-label="Previous page">
+        ← Prev
+      </button>
+      <span className="tiny muted" role="status">
+        {totalPages != null ? (
+          <>
+            Page {page + 1} of {Math.max(totalPages, 1)}
+            {total != null && <> · {total} total</>}
+          </>
+        ) : (
+          <>Page {page + 1}{total != null && <> · {total} total</>}</>
+        )}
+      </span>
+      <button className="btn sm" onClick={onNext} disabled={!canNext} aria-label="Next page">
+        Next →
+      </button>
+    </div>
+  )
+}
+
+/**
+ * Debounced, abortable search input. Replaces per-keystroke fetching: the
+ * caller gets one value 250ms after typing stops, and a fresh AbortSignal
+ * per committed value so stale responses never win.
+ */
+export function SearchInput({
+  value,
+  onChange,
+  placeholder,
+  label,
+  delayMs = 250,
+}: {
+  value: string
+  onChange: (value: string, signal: AbortSignal) => void
+  placeholder?: string
+  label: string
+  delayMs?: number
+}) {
+  const [text, setText] = useState(value)
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      if (text !== value) onChangeRef.current(text, controller.signal)
+    }, delayMs)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [text, value, delayMs])
+
+  useEffect(() => setText(value), [value])
+
+  return (
+    <div className="field search-field">
+      <label className="field-label" htmlFor={`search-${label}`}>
+        {label}
+      </label>
+      <input
+        id={`search-${label}`}
+        type="search"
+        value={text}
+        placeholder={placeholder}
+        onChange={(event) => setText(event.target.value)}
+      />
+    </div>
+  )
+}
+
+// ---- pipeline -------------------------------------------------------------
+
+/**
+ * Document processing as visible stages, not a spinner. The current stage is
+ * derived from DocumentStatus + progress counters; percentages are never
+ * shown because the backend reports counts, not fractions of a known whole.
+ */
+const DOC_STAGES = ['UPLOAD', 'CHUNK', 'EXTRACT', 'VALIDATE', 'PROPOSE', 'APPROVAL'] as const
+
+export function PipelineStepper({
+  status,
+  processedChunks,
+  totalChunks,
+}: {
+  status: string
+  processedChunks?: number | null
+  totalChunks?: number | null
+}) {
+  const index = stageIndex(status)
+  return (
+    <ol className="pipeline-strip" aria-label="Processing pipeline">
+      {DOC_STAGES.map((stage, i) => (
+        <li
+          key={stage}
+          className={`pipe-stage${i < index ? ' done' : ''}${i === index ? ' active' : ''}`}
+          aria-current={i === index ? 'step' : undefined}
+        >
+          <span className="pipe-label">{stage}</span>
+          <span className="tiny muted">
+            {i < index ? 'done' : i === index ? currentHint(status, processedChunks, totalChunks) : 'waiting'}
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function stageIndex(status: string): number {
+  switch (status) {
+    case 'UPLOADED':
+      return 0
+    case 'CHUNKING':
+    case 'CHUNKED':
+      return 1
+    case 'EXTRACTING':
+      return 2
+    case 'AWAITING_APPROVAL':
+      return 5
+    case 'READY':
+      return 6
+    case 'FAILED':
+      return 2
+    default:
+      return 0
+  }
+}
+
+function currentHint(status: string, processed?: number | null, total?: number | null): string {
+  if (status === 'FAILED') return 'failed — reprocess available'
+  if (processed != null && total != null && total > 0) return `${processed}/${total} chunks`
+  return 'in progress'
+}
+
+// ---- overlays -------------------------------------------------------------
+
+/** Confirm dialog for destructive-but-reversible decisions (dismiss, reject). */
+export function Modal({
+  title,
+  children,
+  onClose,
+  actions,
+}: {
+  title: string
+  children: ReactNode
+  onClose: () => void
+  actions: ReactNode
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h3>{title}</h3>
+        <div>{children}</div>
+        <div className="btn-row">{actions}</div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Side inspector that becomes a bottom sheet on small screens (pure CSS).
+ * Used for the entity dossier, evidence, and trace-step detail.
+ */
+export function Drawer({
+  title,
+  children,
+  onClose,
+}: {
+  title: string
+  children: ReactNode
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="drawer-backdrop" onClick={onClose}>
+      <aside
+        className="drawer"
+        role="complementary"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="spread">
+          <h3 style={{ margin: 0 }}>{title}</h3>
+          <button className="btn sm ghost" onClick={onClose} aria-label={`Close ${title}`}>
+            ✕
+          </button>
+        </div>
+        {children}
+      </aside>
+    </div>
+  )
+}
+
+// ---- graph ----------------------------------------------------------------
+
+/**
+ * Knowledge confidence that never depends on color alone: each state carries
+ * an icon, a label, and (via CSS) a distinct border/edge pattern.
+ */
+export function ConfidenceBadge({ state }: { state: 'VERIFIED' | 'SINGLE_SOURCE' | 'CONTRADICTED' }) {
+  const icon = state === 'VERIFIED' ? '●' : state === 'CONTRADICTED' ? '◆' : '○'
+  const label = state === 'VERIFIED' ? 'Verified' : state === 'CONTRADICTED' ? 'Contradicted' : 'Single source'
+  return (
+    <span className={`badge confidence-${state.toLowerCase()}`}>
+      <span aria-hidden="true">{icon}</span> {label}
+    </span>
+  )
+}
+
 export function truncate(value: string | null | undefined, max = 160): string {
   if (!value) return ''
   return value.length <= max ? value : `${value.slice(0, max)}…`

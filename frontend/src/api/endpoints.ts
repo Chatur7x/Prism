@@ -6,7 +6,7 @@
  * to look when a route changes and a single place where a wrong path or method
  * becomes a type error.
  */
-import { getToken, qs, request } from './client'
+import { ApiError, getToken, qs, request } from './client'
 import type {
   ApprovalQueue,
   AuthResponse,
@@ -30,6 +30,7 @@ import type {
   DocumentRow,
   PageResponse,
   Entity,
+  EntityDetail,
   FsmView,
   GraphScope,
   GraphView,
@@ -71,6 +72,11 @@ export const authApi = {
     }),
 
   me: () => request<AuthUser>('/api/auth/me'),
+
+  refresh: () =>
+    request<AuthResponse>('/api/auth/refresh', {
+      method: 'POST',
+    }),
 }
 
 // ---- corpora --------------------------------------------------------------
@@ -99,8 +105,8 @@ export const documentApi = {
    * Returns the page envelope, not a bare array. A caller wanting every document
    * must follow `hasNext` rather than assume one request suffices.
    */
-  list: (corpusId: number, size = 200) =>
-    request<PageResponse<DocumentRow>>(`/api/documents${qs({ corpusId, size })}`),
+  list: (corpusId: number, page = 0, size = 50) =>
+    request<PageResponse<DocumentRow>>(`/api/documents${qs({ corpusId, page, size })}`),
 
   createText: (corpusId: number, title: string, contentText: string) =>
     request<DocumentRow>('/api/documents', {
@@ -130,13 +136,21 @@ export const documentApi = {
 
     if (!response.ok) {
       const text = await response.text()
-      let detail: { message?: string; error?: string; traceId?: string } | null = null
+      let detail: { message?: string; error?: string; traceId?: string; violations?: { field: string; message: string }[] } | null = null
       try {
         detail = JSON.parse(text)
       } catch {
         detail = { message: text }
       }
-      throw new Error(detail?.message ?? `Upload failed with status ${response.status}`)
+      // Same envelope as request(): traceId and violations must survive so an
+      // upload failure can be followed into the Glass Box like any other error.
+      throw new ApiError(
+        detail?.message ?? detail?.error ?? `Upload failed with status ${response.status}`,
+        response.status,
+        detail?.traceId ?? null,
+        detail?.violations ?? [],
+        detail,
+      )
     }
     return (await response.json()) as DocumentRow
   },
@@ -176,6 +190,8 @@ export const knowledgeApi = {
 
   claims: (corpusId: number, status?: string, page = 0, size = 50) =>
     request<ClaimPage>(`/api/claims${qs({ corpusId, status, page, size })}`),
+
+  entity: (id: number) => request<EntityDetail>(`/api/entities/${id}`),
 
   entities: (corpusId: number, search?: string) =>
     request<Entity[]>(`/api/entities${qs({ corpusId, search })}`),
@@ -222,8 +238,8 @@ export const graphApi = {
 // ---- contradictions -------------------------------------------------------
 
 export const contradictionApi = {
-  list: (corpusId: number, status?: string, size = 50) =>
-    request<ContradictionPage>(`/api/contradictions${qs({ corpusId, status, size })}`),
+  list: (corpusId: number, status?: string, page = 0, size = 50) =>
+    request<ContradictionPage>(`/api/contradictions${qs({ corpusId, status, page, size })}`),
 
   /**
    * Pipeline counters for the whole corpus, verifier-gated.
@@ -249,8 +265,8 @@ export const contradictionApi = {
   dismiss: (id: number) =>
     request<Contradiction>(`/api/contradictions/${id}/dismiss`, { method: 'POST' }),
 
-  debates: (corpusId: number, size = 50) =>
-    request<DebatePage>(`/api/debates${qs({ corpusId, size })}`),
+  debates: (corpusId: number, page = 0, size = 50) =>
+    request<DebatePage>(`/api/debates${qs({ corpusId, page, size })}`),
 }
 
 // ---- debate ---------------------------------------------------------------
@@ -337,7 +353,8 @@ export const adminApi = {
    * Was typed `UserSummary[]` while the server returned a page object, so the
    * admin page read `.length` off an object and always rendered its empty state.
    */
-  users: () => request<PageResponse<UserSummary>>('/api/admin/users'),
+  users: (page = 0, size = 50) =>
+    request<PageResponse<UserSummary>>(`/api/admin/users${qs({ page, size })}`),
 
   createUser: (username: string, email: string, password: string, role: string) =>
     request<UserSummary>('/api/admin/users', {

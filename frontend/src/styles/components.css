@@ -663,3 +663,169 @@ code.inline {
 .disclosure > summary::-webkit-details-marker {
   display: none;
 }
+
+/* Pipeline strip (dashboard + document detail): stages as links, never
+   color-alone — the label text carries the meaning, counts are plain ink. */
+.pipeline-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+.pipeline-stage {
+  flex: 1 1 120px;
+  text-align: center;
+  padding: var(--space-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  color: var(--ink-0);
+  text-decoration: none;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+a.pipeline-stage:hover {
+  border-color: var(--line-2);
+  text-decoration: none;
+}
+
+.pipe-stage {
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+  color: var(--ink-0);
+  text-decoration: none;
+}
+
+a.pipe-stage:hover {
+  border-color: var(--line-2);
+}
+
+.pipe-value {
+  font-size: 1.5rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.pipe-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dash-actions,
+.dash-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Pager: three honest elements — back, position, forward. */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.search-field {
+  max-width: 320px;
+}
+
+/* Pipeline stepper states. Text carries the state; the border is decoration. */
+.pipe-stage.done {
+  border-style: solid;
+  border-color: var(--trust-approved);
+}
+
+.pipe-stage.active {
+  border-width: 2px;
+  border-color: var(--accent);
+}
+
+/* Modal + drawer. Drawer docks right on desktop, sheets from the bottom on
+   small screens — same component, no JS breakpoint. */
+.modal-backdrop,
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 21, 26, 0.4);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: var(--surface-0);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  padding: var(--space-5);
+  max-width: 480px;
+  width: calc(100vw - var(--space-6));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.modal h3 {
+  margin: 0;
+}
+
+.drawer-backdrop {
+  justify-content: flex-end;
+}
+
+.drawer {
+  background: var(--surface-0);
+  border-left: 1px solid var(--line-1);
+  width: min(420px, 100vw);
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Confidence badges: icon + label + border pattern, never color alone. */
+.badge.confidence-verified {
+  border-style: solid;
+  border-width: 2px;
+}
+
+.badge.confidence-single_source {
+  border-style: dashed;
+}
+
+.badge.confidence-contradicted {
+  border-style: double;
+  border-width: 3px;
+}
+
+@media (max-width: 900px) {
+  .drawer-backdrop {
+    align-items: flex-end;
+    justify-content: stretch;
+  }
+
+  .drawer {
+    width: 100%;
+    height: auto;
+    max-height: 82vh;
+    border-left: none;
+    border-top: 1px solid var(--line-1);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+}

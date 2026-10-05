@@ -6,7 +6,7 @@ verification pipeline end to end.
 > **Status: NOT RELEASE CANDIDATE.** The deterministic verification engine runs and is
 > covered by 256 passing tests. **No real LLM has ever been executed against the frozen
 > gold set** — that run is blocked behind credentials you must supply yourself
-> (see [`real-evaluation.md`](real-evaluation.md)). Everything the model "extracts" in
+> (see [`evaluation.md`](evaluation.md)). Everything the model "extracts" in
 > this guide comes from the local `fake` provider, which emits fixed, pre-scripted
 > outputs so the workflow can be demonstrated offline. Treat extracted content as
 > **synthetic demo data**, never as findings about Meridian or anyone else.
@@ -102,7 +102,8 @@ Each stop below is a real page in the app and a real stage of the pipeline.
    `PENDING`/`PROPOSED`. Approve the ones you accept; reject the ones you do not.
    Nothing becomes visible to verification until a human approves it.
 3. **Verification** — approved claims are verified against the deterministic engine:
-   each claim gets a status (`SUPPORTED`, `CONTRADICTED`, `UNVERIFIABLE`, …) with the
+   each claim gets a status (`SUPPORTED`, `CONTRADICTED`, `INSUFFICIENT_EVIDENCE`,
+   `EXAGGERATED`, `SOURCE_MISSING`, …) with the
    evidence that produced it.
 4. **Contradictions** — conflicting approved triples are surfaced as contradiction
    records for a human to adjudicate.
@@ -132,14 +133,14 @@ cd backend
 mvn test
 ```
 
-Expect **256 tests, 0 failures, 0 skipped**. Testcontainers needs Docker running;
+Expect **259 tests, 0 failures, 0 skipped**. Testcontainers needs Docker running;
 if container starts fail, pin the API version with `-Ddocker.api.version=1.44`.
 
 ---
 
 ## 6. Switching to a real LLM
 
-Set `LLM_PROVIDER` to your provider (see `docs/real-evaluation.md`) and supply the
+Set `LLM_PROVIDER` to your provider (see `docs/evaluation.md`) and supply the
 matching API key via environment variable. The backend **refuses to silently fall
 back** to `fake` — if the real provider is unreachable, requests fail loudly rather
 than returning fabricated output.
@@ -147,7 +148,7 @@ than returning fabricated output.
 To run the frozen gold-set evaluation:
 
 ```powershell
-.\scripts\run-real-evaluation.ps1 -RequireRealModel
+.\scripts\llm-eval.ps1 -Username '<user>' -Password '<pass>' -CorpusId <id> -RequireRealModel
 ```
 
 Without real credentials this exits with code 4 and `REAL_MODEL_EXECUTION_REQUIRED`.

@@ -6,8 +6,8 @@
  * document and chunk that produced it, because "these two facts conflict" is
  * only actionable if the reviewer can open the sources.
  */
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { contradictionApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
@@ -18,7 +18,9 @@ import {
   Empty,
   ErrorState,
   Loading,
+  Modal,
   PageHeader,
+  Pager,
   Stat,
   StatusBadge,
   formatDate,
@@ -33,14 +35,33 @@ export function ContradictionsPage() {
   const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('ALL')
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [dismissTarget, setDismissTarget] = useState<Contradiction | null>(null)
 
   const corpusId = selected?.id
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
+  const gotoPage = (next: number) =>
+    setParams(next <= 0 ? {} : { page: String(next) }, { replace: true })
+  const prevCorpus = useRef(corpusId)
+  useEffect(() => {
+    if (prevCorpus.current !== corpusId) {
+      prevCorpus.current = corpusId
+      if (page !== 0) setParams({}, { replace: true })
+    }
+  }, [corpusId, page, setParams])
+  const pickFilter = (next: Filter) => {
+    setFilter(next)
+    if (page !== 0) setParams({}, { replace: true })
+  }
   const findings = useAsync(
-    () => (corpusId ? contradictionApi.list(corpusId, filter === 'ALL' ? undefined : filter) : Promise.resolve(null)),
-    [corpusId, filter],
+    () =>
+      corpusId
+        ? contradictionApi.list(corpusId, filter === 'ALL' ? undefined : filter, page)
+        : Promise.resolve(null),
+    [corpusId, filter, page],
   )
   const debates = useAsync(
-    () => (corpusId ? contradictionApi.debates(corpusId) : Promise.resolve(null)),
+    () => (corpusId ? contradictionApi.debates(corpusId, 0) : Promise.resolve(null)),
     [corpusId],
   )
   const stats = useAsync(
@@ -66,6 +87,7 @@ export function ContradictionsPage() {
 
   const dismiss = useAction(async (contradictionId: number) => {
     await contradictionApi.dismiss(contradictionId)
+    setDismissTarget(null)
     findings.reload()
     stats.reload()
   })
@@ -119,7 +141,7 @@ export function ContradictionsPage() {
           <button
             key={f}
             className={filter === f ? 'btn sm primary' : 'btn sm'}
-            onClick={() => setFilter(f)}
+            onClick={() => pickFilter(f)}
           >
             {f.replace(/_/g, ' ').toLowerCase()}
           </button>
@@ -210,7 +232,7 @@ export function ContradictionsPage() {
                             </button>
                             <button
                               className="btn ghost sm"
-                              onClick={() => void dismiss.run(row.id)}
+                              onClick={() => setDismissTarget(row)}
                               disabled={dismiss.pending}
                             >
                               Dismiss
@@ -233,7 +255,46 @@ export function ContradictionsPage() {
             </table>
           </div>
         )}
+        {findings.data && findings.data.total > 0 && (
+          <Pager
+            page={page}
+            totalPages={Math.ceil(findings.data.total / (findings.data.size || 50))}
+            total={findings.data.total}
+            onPrev={() => gotoPage(page - 1)}
+            onNext={() => gotoPage(page + 1)}
+          />
+        )}
       </Card>
+
+      {dismissTarget != null && (
+        <Modal
+          title="Dismiss this contradiction?"
+          onClose={() => setDismissTarget(null)}
+          actions={
+            <>
+              <button className="btn sm ghost" onClick={() => setDismissTarget(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn sm primary"
+                onClick={() => void dismiss.run(dismissTarget.id)}
+                disabled={dismiss.pending}
+              >
+                {dismiss.pending ? 'Dismissing…' : 'Confirm dismiss'}
+              </button>
+            </>
+          }
+        >
+          <p>
+            <strong>{dismissTarget.subjectText}</strong>{' '}
+            <span className="mono tiny">{dismissTarget.predicate}</span>
+          </p>
+          <p className="tiny muted">
+            Dismissing keeps the record for audit; it does not delete the finding. Rule{' '}
+            {dismissTarget.ruleCode} · {dismissTarget.ruleVersion}.
+          </p>
+        </Modal>
+      )}
 
       {debates.data && debates.data.totalElements > 0 && (
         <div style={{ marginTop: 'var(--space-4)' }}>

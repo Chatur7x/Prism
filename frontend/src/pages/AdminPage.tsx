@@ -8,6 +8,7 @@
  * signature of a worker that died, and it should be visible rather than inferred.
  */
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { adminApi } from '../api/endpoints'
 import { useAuth } from '../auth/AuthContext'
@@ -20,6 +21,7 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  Pager,
   Stat,
   StatusBadge,
   formatDate,
@@ -41,7 +43,11 @@ export function AdminPage() {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<Role>('VERIFIER')
 
-  const users = useAsync(async () => (await adminApi.users()).content, [])
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
+  const gotoPage = (next: number) =>
+    setParams(next <= 0 ? {} : { page: String(next) }, { replace: true })
+  const users = useAsync(async () => await adminApi.users(page), [page])
   const jobs = useAsync(() => adminApi.jobs(), [])
   const status = useAsync(() => adminApi.status(), [])
 
@@ -101,55 +107,64 @@ export function AdminPage() {
       )}
 
       <div className="grid cols-2">
-        <Card title={`Users (${users.data?.length ?? 0})`} flush>
+        <Card title={`Users (${users.data?.totalElements ?? 0})`} flush>
           {users.loading && <Loading />}
-          {users.data && users.data.length === 0 && <Empty title="No users" />}
-          {users.data && users.data.length > 0 && (
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Role</th>
-                    <th>Enabled</th>
-                    <th>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.data.map((user: UserSummary) => (
-                    <tr key={user.id}>
-                      <td>
-                        <strong>{user.username}</strong>
-                        <div className="tiny muted">{user.email}</div>
-                      </td>
-                      <td style={{ minWidth: 160 }}>
-                        <select
-                          value={user.role}
-                          onChange={(event) =>
-                            void changeRole.run(user.id, event.target.value as Role)
-                          }
-                          disabled={changeRole.pending}
-                          title={ROLE_MEANING[user.role]}
-                        >
-                          {(['ANALYST', 'VERIFIER', 'ADMIN'] as Role[]).map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="tiny muted">{ROLE_MEANING[user.role]}</div>
-                      </td>
-                      <td>
-                        <span className={`badge ${user.enabled ? 'approved' : 'missing'}`}>
-                          {user.enabled ? 'enabled' : 'disabled'}
-                        </span>
-                      </td>
-                      <td className="tiny nowrap">{formatDate(user.createdAt)}</td>
+          {users.data && users.data.totalElements === 0 && <Empty title="No users" />}
+          {users.data && users.data.content.length > 0 && (
+            <>
+              <div className="table-wrap">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Role</th>
+                      <th>Enabled</th>
+                      <th>Created</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {users.data.content.map((user: UserSummary) => (
+                      <tr key={user.id}>
+                        <td>
+                          <strong>{user.username}</strong>
+                          <div className="tiny muted">{user.email}</div>
+                        </td>
+                        <td style={{ minWidth: 160 }}>
+                          <select
+                            value={user.role}
+                            onChange={(event) =>
+                              void changeRole.run(user.id, event.target.value as Role)
+                            }
+                            disabled={changeRole.pending}
+                            title={ROLE_MEANING[user.role]}
+                          >
+                            {(['ANALYST', 'VERIFIER', 'ADMIN'] as Role[]).map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="tiny muted">{ROLE_MEANING[user.role]}</div>
+                        </td>
+                        <td>
+                          <span className={`badge ${user.enabled ? 'approved' : 'missing'}`}>
+                            {user.enabled ? 'enabled' : 'disabled'}
+                          </span>
+                        </td>
+                        <td className="tiny nowrap">{formatDate(user.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pager
+                page={page}
+                totalPages={users.data.totalPages}
+                total={users.data.totalElements}
+                onPrev={() => gotoPage(page - 1)}
+                onNext={() => gotoPage(page + 1)}
+              />
+            </>
           )}
         </Card>
 

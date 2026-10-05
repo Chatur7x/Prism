@@ -1,0 +1,347 @@
+/**
+ * Public homepage styles. Own identity: ink-on-paper precision, one accent,
+ * hairline borders, technical patterns. No purple AI gradients, no
+ * glassmorphism. Static sections only — motion is entrance-grade.
+ *
+ * Token names follow styles/tokens.css exactly (numbered scale).
+ */
+
+.home {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 var(--space-5) var(--space-7);
+  color: var(--ink-0);
+  font-family: var(--font-sans);
+}
+
+.home-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.home-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.home-bar nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.home-bar nav a:not(.btn) {
+  color: var(--ink-1);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.home-bar nav a:not(.btn):hover {
+  color: var(--ink-0);
+  text-decoration: underline;
+}
+
+.home-hero {
+  padding: var(--space-7) 0 var(--space-6);
+  text-align: left;
+}
+
+.home-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin: 0 0 var(--space-3);
+}
+
+.home-hero h1 {
+  font-size: clamp(2.4rem, 5.5vw, 4.2rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-4);
+}
+
+.home-lede {
+  font-size: 1.12rem;
+  max-width: 62ch;
+  color: var(--ink-1);
+}
+
+.home-ctas {
+  margin: var(--space-5) 0;
+}
+
+.home-hero-visual {
+  margin-top: var(--space-7);
+  padding: var(--space-5);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(var(--line-1) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-1) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.home-hero-visual .tiny {
+  margin-top: var(--space-3);
+}
+
+.home-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.home-flow-node {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  animation: home-rise 500ms ease-out both;
+}
+
+.home-section {
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--line-1);
+}
+
+.home-section h2 {
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-2);
+}
+
+.home-section > p {
+  color: var(--ink-1);
+  max-width: 68ch;
+}
+
+.home-pipeline {
+  list-style: none;
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.home-pipeline li {
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background: var(--surface-0);
+}
+
+.home-pipeline-index {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.home-demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-5) 0 var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+}
+
+.home-node {
+  font-weight: 600;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+}
+
+.home-edge {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--accent);
+  padding: 0 var(--space-1);
+}
+
+.home-chip {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-sm);
+}
+
+.home-council {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.home-persona {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+}
+
+.home-weights {
+  display: flex;
+  gap: 4px;
+}
+
+.home-weights i {
+  width: 18px;
+  height: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+}
+
+.home-weights i.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.home-trace {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.home-trace > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.home-step {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+}
+
+.home-arrow {
+  color: var(--ink-2);
+}
+
+.home-chat {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.home-bubble {
+  max-width: 60ch;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+}
+
+.home-bubble.q {
+  align-self: flex-end;
+}
+
+.home-bubble.r {
+  border-style: dotted;
+  color: var(--ink-1);
+}
+
+.home-cite {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.home-final {
+  text-align: left;
+}
+
+/* Auth pages share the product frame without the marketing weight. */
+.auth-page {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-sans);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.auth-password-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.auth-password-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.auth-rules {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+
+.auth-expired {
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  background: var(--surface-0);
+}
+
+@keyframes home-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .home-council {
+    grid-template-columns: 1fr;
+  }
+  .home-hero {
+    padding: var(--space-6) 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-flow-node {
+    animation: none;
+  }
+}

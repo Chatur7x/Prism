@@ -19,6 +19,19 @@ import type { AuthResponse, AuthUser } from './types'
 
 const TOKEN_KEY = 'prism.token'
 const USER_KEY = 'prism.user'
+const EXPIRY_KEY = 'prism.expiresAt'
+const EXPIRED_FLAG = 'prism.expired'
+
+/** True once when the previous session died via 401. Consumed by the router. */
+export function takeExpiredFlag(): boolean {
+  try {
+    const hit = sessionStorage.getItem(EXPIRED_FLAG) === '1'
+    sessionStorage.removeItem(EXPIRED_FLAG)
+    return hit
+  } catch {
+    return false
+  }
+}
 
 /**
  * Absolute origin of the PRISM API, or empty for same-origin.
@@ -115,15 +128,25 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
-export function setSession(token: string, user: AuthUser): void {
+export function setSession(token: string, user: AuthUser, expiresAtMs?: number): void {
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(USER_KEY, JSON.stringify(user))
+  if (expiresAtMs != null) localStorage.setItem(EXPIRY_KEY, String(expiresAtMs))
+  else localStorage.removeItem(EXPIRY_KEY)
   emit()
+}
+
+/** Absolute expiry of the current session in epoch ms, or null when unknown. */
+export function getSessionExpiry(): number | null {
+  const raw = localStorage.getItem(EXPIRY_KEY)
+  const parsed = raw == null ? Number.NaN : Number(raw)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 export function clearSession(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  localStorage.removeItem(EXPIRY_KEY)
   emit()
 }
 
@@ -213,8 +236,16 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     } | null
 
     // 401 means the stored token is no longer usable. Clear it once, here, so
-    // no component has to remember to.
+    // no component has to remember to. A flag records that a live session
+    // died (as opposed to never existing) so the login page can say so.
     if (response.status === 401 && !anonymous) {
+      if (getToken()) {
+        try {
+          sessionStorage.setItem(EXPIRED_FLAG, '1')
+        } catch {
+          // Storage failure must never break error handling.
+        }
+      }
       clearSession()
     }
 

@@ -7,7 +7,8 @@
  * penalty, the fused ranking score, and the evidence status are four different
  * things and are never collapsed into one "confidence".
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { verificationApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
@@ -18,6 +19,7 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  Pager,
   Stat,
   useAction,
   useAsync,
@@ -27,9 +29,22 @@ export function VerificationPage() {
   const { selected } = useCorpus()
   const [lastOutcome, setLastOutcome] = useState<Record<string, unknown> | null>(null)
 
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
+  const gotoPage = (next: number) =>
+    setParams(next <= 0 ? {} : { page: String(next) }, { replace: true })
+  const corpusId = selected?.id
+  const prevCorpus = useRef(corpusId)
+  useEffect(() => {
+    if (prevCorpus.current !== corpusId) {
+      prevCorpus.current = corpusId
+      if (page !== 0) setParams({}, { replace: true })
+    }
+  }, [corpusId, page, setParams])
+
   const claims = useAsync(
-    () => (selected ? verificationApi.verdicts(selected.id) : Promise.resolve(null)),
-    [selected?.id],
+    () => (selected ? verificationApi.verdicts(selected.id, page) : Promise.resolve(null)),
+    [selected?.id, page],
   )
 
   const verifyAll = useAction(async () => {
@@ -118,8 +133,9 @@ export function VerificationPage() {
           </Empty>
         )}
         {claims.data && claims.data.total > 0 && (
-          <div className="table-wrap">
-            <table className="data">
+          <>
+            <div className="table-wrap">
+              <table className="data">
               <thead>
                 <tr>
                   <th>Claim</th>
@@ -184,15 +200,33 @@ export function VerificationPage() {
                       {v.adjudicator && <div className="tiny muted">by {v.adjudicator}</div>}
                     </td>
                     <td>
-                      <a className="btn sm" href={`/verdicts/${v.id}`}>
-                        Inspect
-                      </a>
+                      <div className="btn-row">
+                        <button
+                          className="btn sm ghost"
+                          onClick={() => void verifyOne.run(v.claimId)}
+                          disabled={verifyOne.pending}
+                          title={`Re-verify claim ${v.claimId}`}
+                        >
+                          Verify
+                        </button>
+                        <Link className="btn sm" to={`/verdicts/${v.id}`}>
+                          Inspect
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+            <Pager
+              page={page}
+              totalPages={Math.ceil(claims.data.total / (claims.data.size || 50))}
+              total={claims.data.total}
+              onPrev={() => gotoPage(page - 1)}
+              onNext={() => gotoPage(page + 1)}
+            />
+          </>
         )}
       </Card>
 

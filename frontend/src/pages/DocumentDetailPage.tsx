@@ -18,6 +18,7 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  PipelineStepper,
   Stat,
   StatusBadge,
   formatDate,
@@ -61,6 +62,16 @@ export function DocumentDetailPage() {
   if (doc.loading || !doc.data) return <Loading label="Loading document" />
 
   const p = progress.data
+
+  // The stepper is fed the run's own status where one exists. The document
+  // status and the run status are not the same field and can disagree -- a
+  // document can still read EXTRACTING after its run has failed -- and
+  // PipelineStepper treats FAILED as a stage, so a failed run must win over a
+  // stale document status. Counters come from the same response. No
+  // percentage is computed: the backend reports counts, not a fraction.
+  const failed =
+    p?.runStatus === 'FAILED' || p?.status === 'FAILED' || doc.data.status === 'FAILED'
+  const stageStatus: DocumentStatus = failed ? 'FAILED' : (p?.status ?? doc.data.status)
 
   return (
     <>
@@ -107,6 +118,12 @@ export function DocumentDetailPage() {
           />
         </div>
       )}
+
+      <PipelineStepper
+        status={stageStatus}
+        processedChunks={p?.processedChunks ?? null}
+        totalChunks={p?.totalChunks ?? null}
+      />
 
       {busy && (
         <Alert kind="info">

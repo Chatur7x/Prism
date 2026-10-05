@@ -1,6 +1,6 @@
 /** Verdict list with type breakdown, mirroring the knowledge and graph tabs. */
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import type { VerdictType } from '../api/types'
 import { verificationApi } from '../api/endpoints'
@@ -11,6 +11,7 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  Pager,
   Stat,
   StatusBadge,
   formatDate,
@@ -29,9 +30,22 @@ export function VerdictsPage() {
   const { selected } = useCorpus()
   const [filter, setFilter] = useState<VerdictType | 'ALL'>('ALL')
 
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
+  const gotoPage = (next: number) =>
+    setParams(next <= 0 ? {} : { page: String(next) }, { replace: true })
+  const corpusId = selected?.id
+  const prevCorpus = useRef(corpusId)
+  useEffect(() => {
+    if (prevCorpus.current !== corpusId) {
+      prevCorpus.current = corpusId
+      if (page !== 0) setParams({}, { replace: true })
+    }
+  }, [corpusId, page, setParams])
+
   const verdicts = useAsync(
-    () => (selected ? verificationApi.verdicts(selected.id) : Promise.resolve(null)),
-    [selected?.id],
+    () => (selected ? verificationApi.verdicts(selected.id, page) : Promise.resolve(null)),
+    [selected?.id, page],
   )
 
   if (!selected) {
@@ -99,8 +113,9 @@ export function VerdictsPage() {
           <Empty title="No verdicts of this type" />
         )}
         {rows.length > 0 && (
-          <div className="table-wrap">
-            <table className="data">
+          <>
+            <div className="table-wrap">
+              <table className="data">
               <thead>
                 <tr>
                   <th>Claim</th>
@@ -143,7 +158,17 @@ export function VerdictsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+            {verdicts.data && (
+              <Pager
+                page={page}
+                totalPages={Math.ceil(verdicts.data.total / (verdicts.data.size || 50))}
+                total={verdicts.data.total}
+                onPrev={() => gotoPage(page - 1)}
+                onNext={() => gotoPage(page + 1)}
+              />
+            )}
+          </>
         )}
       </Card>
     </>

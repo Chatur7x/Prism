@@ -197,7 +197,7 @@ when it is the first thing to touch the API — which makes it a flaky test rath
 than a reliable one.
 
 ```bash
-cd backend && mvn test      # 248 tests, 0 skipped
+cd backend && mvn test      # 259 tests, 0 skipped
 cd frontend && npm run build
 
 # 31-check security probe, including cross-corpus authorization

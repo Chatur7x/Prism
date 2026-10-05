@@ -5,8 +5,8 @@
  * as everything settles, so an idle page issues no further requests — a
  * background poller that never stops is a slow leak.
  */
-import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import type { DocumentStatus } from '../api/types'
 import { documentApi } from '../api/endpoints'
@@ -18,6 +18,7 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  Pager,
   StatusBadge,
   formatDate,
   useAction,
@@ -34,13 +35,26 @@ export function DocumentsPage() {
   const [file, setFile] = useState<File | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
+  const gotoPage = (next: number) =>
+    setParams(next <= 0 ? {} : { page: String(next) }, { replace: true })
+  const corpusId = selected?.id
+  const prevCorpus = useRef(corpusId)
+  useEffect(() => {
+    if (prevCorpus.current !== corpusId) {
+      prevCorpus.current = corpusId
+      if (page !== 0) setParams({}, { replace: true })
+    }
+  }, [corpusId, page, setParams])
+
   const docs = useAsync(
     // The API returns the page envelope; the page wants the rows.
-    async () => (selected ? (await documentApi.list(selected.id)).content : []),
-    [selected?.id],
+    async () => (selected ? await documentApi.list(selected.id, page) : null),
+    [selected?.id, page],
   )
 
-  const hasInFlight = (docs.data ?? []).some((d) => IN_FLIGHT.includes(d.status))
+  const hasInFlight = (docs.data?.content ?? []).some((d) => IN_FLIGHT.includes(d.status))
 
   // Poll only while work is outstanding, and only for the active corpus.
   const reload = docs.reload
@@ -84,7 +98,9 @@ export function DocumentsPage() {
     )
   }
 
-  const list = docs.data ?? []
+  const list = docs.data?.content ?? []
+  const totalPages = docs.data?.totalPages
+  const total = docs.data?.totalElements
 
   return (
     <>
@@ -202,7 +218,7 @@ export function DocumentsPage() {
         </Card>
       </div>
 
-      <Card title={`Documents (${list.length})`} flush>
+      <Card title={`Documents (${total ?? list.length})`} flush>
         {docs.loading && <Loading />}
         {!docs.loading && list.length === 0 && (
           <Empty title="No documents yet">
@@ -245,6 +261,13 @@ export function DocumentsPage() {
             </table>
           </div>
         )}
+        <Pager
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onPrev={() => gotoPage(page - 1)}
+          onNext={() => gotoPage(page + 1)}
+        />
       </Card>
     </>
   )

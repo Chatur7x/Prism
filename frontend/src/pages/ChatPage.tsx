@@ -18,6 +18,7 @@
  * unverified layer this system is built to avoid.
  */
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { chatApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
@@ -278,7 +279,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           {message.traceRunId != null && (
             <>
               {' · '}
-              <a href={`/glassbox/${message.traceRunId}`}>trace #{message.traceRunId}</a>
+              <Link to={`/glassbox/${message.traceRunId}`}>trace #{message.traceRunId}</Link>
             </>
           )}
         </div>

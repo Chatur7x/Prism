@@ -8,9 +8,12 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
-import { ApiError, clearSession, getStoredUser, getToken, onAuthChange, setSession } from '../api/client'
+import { ApiError, clearSession, getSessionExpiry, getStoredUser, getToken, onAuthChange, setSession } from '../api/client'
 import type { AuthUser, Role } from '../api/types'
 import { authApi } from '../api/endpoints'
+
+/** Refresh once when under five minutes remain. */
+const REFRESH_THRESHOLD_MS = 5 * 60 * 1000
 
 interface AuthState {
   user: AuthUser | null
@@ -47,7 +50,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         setUser(fresh)
         // Re-store so a role change made since login is reflected.
-        setSession(getToken() as string, fresh)
+        // Preserve the stored expiry: /me carries no fresh TTL.
+        const token = getToken()
+        if (token) setSession(token, fresh, getSessionExpiry() ?? undefined)
       } catch (error) {
         if (cancelled) return
         // 401 already cleared the session. A network failure is different: the
@@ -67,19 +72,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     const response = await authApi.login(username, password)
-    setSession(response.accessToken, response.user)
+    setSession(response.accessToken, response.user, Date.now() + response.expiresIn * 1000)
     return response.user
   }, [])
 
   const register = useCallback(async (username: string, email: string, password: string) => {
     const response = await authApi.register(username, email, password)
-    setSession(response.accessToken, response.user)
+    setSession(response.accessToken, response.user, Date.now() + response.expiresIn * 1000)
     return response.user
   }, [])
 
   const logout = useCallback(() => {
     clearSession()
   }, [])
+
+  const refreshToken = useCallback(async () => {
+    const response = await authApi.refresh()
+    setSession(response.accessToken, response.user, Date.now() + response.expiresIn * 1000)
+  }, [])
+
+  // Proactive refresh: a single attempt when the session is close to expiry.
+  // Failure clears via the client's 401 path (or is ignored on network loss),
+  // so this never fabricates a session — it only extends a live one.
+  useEffect(() => {
+    if (!user) return
+    let refreshing = false
+    const timer = window.setInterval(() => {
+      const expiry = getSessionExpiry()
+      if (expiry == null || refreshing) return
+      if (expiry - Date.now() < REFRESH_THRESHOLD_MS) {
+        refreshing = true
+        void refreshToken()
+          .catch(() => undefined)
+          .finally(() => {
+            refreshing = false
+          })
+      }
+    }, 30_000)
+    return () => window.clearInterval(timer)
+  }, [user, refreshToken])
 
   const refresh = useCallback(async () => {
     const fresh = await authApi.me()
@@ -100,6 +131,33 @@ export function useAuth(): AuthState {
     throw new Error('useAuth must be used inside an AuthProvider')
   }
   return context
+}
+
+/**
+ * Milliseconds until the stored session expires, or null when unknown or
+ * signed out. Ticks once a minute; the header uses it for the expiry
+ * indicator, so it is deliberately coarse.
+ */
+export function useSessionCountdown(): number | null {
+  const { user } = useAuth()
+  const [remaining, setRemaining] = useState<number | null>(() => {
+    const expiry = getSessionExpiry()
+    return expiry == null ? null : expiry - Date.now()
+  })
+  useEffect(() => {
+    if (!user) {
+      setRemaining(null)
+      return
+    }
+    const update = () => {
+      const expiry = getSessionExpiry()
+      setRemaining(expiry == null ? null : expiry - Date.now())
+    }
+    update()
+    const timer = window.setInterval(update, 30_000)
+    return () => window.clearInterval(timer)
+  }, [user])
+  return remaining
 }
 
 /** True when the user holds the VERIFIER or ADMIN role. */

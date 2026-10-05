@@ -6,10 +6,10 @@
  * machine record, and a block the chair wrote are not the same kind of claim
  * and must not read identically.
  */
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import { debateApi, reportApi } from '../api/endpoints'
+import { contradictionApi, debateApi, reportApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
 import type { BlockType, Debate, ReportBlock } from '../api/types'
 import {
@@ -19,6 +19,7 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  Pager,
   StatusBadge,
   formatDate,
   useAsync,
@@ -45,12 +46,27 @@ export function ReportsPage() {
   const navigate = useNavigate()
   const [selectedDebateId, setSelectedDebateId] = useState<number | null>(null)
 
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
+  const gotoPage = (next: number) =>
+    setParams(next <= 0 ? {} : { page: String(next) }, { replace: true })
+  const corpusId = selected?.id
+  const prevCorpus = useRef(corpusId)
+  useEffect(() => {
+    if (prevCorpus.current !== corpusId) {
+      prevCorpus.current = corpusId
+      setSelectedDebateId(null)
+      if (page !== 0) setParams({}, { replace: true })
+    }
+  }, [corpusId, page, setParams])
+
   const debates = useAsync(
-    () => (selected ? require_debates(selected.id) : Promise.resolve([])),
-    [selected?.id],
+    () => (selected ? contradictionApi.debates(selected.id, page) : Promise.resolve(null)),
+    [selected?.id, page],
   )
 
-  const activeId = selectedDebateId ?? debates.data?.[0]?.id ?? null
+  const rows = debates.data?.content ?? []
+  const activeId = selectedDebateId ?? rows[0]?.id ?? null
   const report = useAsync(
     () => (activeId ? reportApi.forDebate(activeId) : Promise.resolve(null)),
     [activeId],
@@ -66,9 +82,6 @@ export function ReportsPage() {
     )
   }
 
-  const rows = debates.data ?? []
-  const synthesizable = rows.filter((d: Debate) => d.state === 'AWAITING_CHAIR')
-
   return (
     <>
       <PageHeader
@@ -80,47 +93,68 @@ export function ReportsPage() {
             than quietly presented as fact.
           </>
         }
-        actions={
-          synthesizable.length > 0 && (
-            <button
-              className="btn primary"
-              onClick={() => setSelectedDebateId(synthesizable[0]!.id)}
-              disabled={synthesize.pending}
-            >
-              {synthesize.pending && <span className="spinner" aria-hidden="true" />}
-              Synthesise the awaiting Council
-            </button>
-          )
-        }
       />
 
       {debates.error != null && <ErrorState error={debates.error} />}
       {synthesize.error != null && <ErrorState error={synthesize.error} />}
 
-      {rows.length === 0 ? (
+      {debates.loading && rows.length === 0 ? (
+        <Loading label="Loading Councils" />
+      ) : rows.length === 0 ? (
         <Empty title="No Councils yet">
           Detect a contradiction in the approved record, then convene a Council over it. A report
           exists only once a debate has finished arguing.
         </Empty>
       ) : (
         <div className="grid" style={{ gridTemplateColumns: '280px 1fr', gap: 'var(--space-4)' }}>
-          <Card title="Councils" flush>
+          <Card title={`Councils (${debates.data?.totalElements ?? rows.length})`} flush>
             <div className="list-select">
               {rows.map((debate: Debate) => (
-                <button
+                <div
                   key={debate.id}
                   className={debate.id === activeId ? 'list-item active' : 'list-item'}
-                  onClick={() => setSelectedDebateId(debate.id)}
                 >
-                  <div className="tiny muted">#{debate.id}</div>
-                  <div className="small">{debate.topic}</div>
-                  <div className="row" style={{ marginTop: 4 }}>
-                    <StatusBadge value={debate.state} />
-                    <span className="tiny muted">round {debate.currentRound}/{debate.maxRounds}</span>
-                  </div>
-                </button>
+                  <button
+                    className="list-item-main"
+                    onClick={() => setSelectedDebateId(debate.id)}
+                    style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}
+                  >
+                    <div className="tiny muted">#{debate.id}</div>
+                    <div className="small">{debate.topic}</div>
+                    <div className="row" style={{ marginTop: 4 }}>
+                      <StatusBadge value={debate.state} />
+                      <span className="tiny muted">
+                        round {debate.currentRound}/{debate.maxRounds}
+                      </span>
+                    </div>
+                  </button>
+                  {debate.state === 'AWAITING_CHAIR' && (
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        className="btn sm primary"
+                        onClick={() => {
+                          setSelectedDebateId(debate.id)
+                          void synthesize.run(debate.id)
+                        }}
+                        disabled={synthesize.pending}
+                      >
+                        {synthesize.pending && <span className="spinner" aria-hidden="true" />}
+                        Synthesise
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
+            {debates.data && (
+              <Pager
+                page={page}
+                totalPages={debates.data.totalPages}
+                total={debates.data.totalElements}
+                onPrev={() => gotoPage(page - 1)}
+                onNext={() => gotoPage(page + 1)}
+              />
+            )}
           </Card>
 
           <div className="stack">
@@ -199,26 +233,20 @@ export function ReportsPage() {
   )
 }
 
-/** Discussions are corpus-scoped and read through the contradictions namespace. */
-async function require_debates(corpusId: number): Promise<Debate[]> {
-  const { contradictionApi } = await import('../api/endpoints')
-  const page = await contradictionApi.debates(corpusId)
-  return page.content
-}
-
 function useSynthesize(debateId: number | null, onDone: () => void) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
-  async function run() {
-    if (debateId == null) return
+  async function run(targetId?: number) {
+    const id = targetId ?? debateId
+    if (id == null) return
     setPending(true)
     setError(null)
     try {
       // Synthesize returns a receipt, not the report. The report is read
       // separately because it is idempotent: if one already existed, this call
       // is a no-op and the existing report is what should be shown.
-      await debateApi.synthesize(debateId)
+      await debateApi.synthesize(id)
       onDone()
     } catch (cause) {
       setError(cause)

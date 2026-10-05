@@ -9,7 +9,7 @@
 import type { ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 
-import { useAuth } from '../auth/AuthContext'
+import { useAuth, useSessionCountdown } from '../auth/AuthContext'
 import { useCorpus } from '../corpus/CorpusContext'
 
 interface NavItem {
@@ -22,6 +22,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: '◉', group: 'Source' },
   { to: '/corpora', label: 'Corpora', icon: '▤', group: 'Source' },
   { to: '/documents', label: 'Documents', icon: '▦', group: 'Source' },
   { to: '/approval', label: 'Approval queue', icon: '✓', roles: ['VERIFIER', 'ADMIN'], group: 'Source' },
@@ -39,9 +40,19 @@ const NAV: NavItem[] = [
   { to: '/admin', label: 'Administration', icon: '⚙', roles: ['ADMIN'], group: 'Use' },
 ]
 
+/** Coarse session readout: minutes while healthy, a warning under five. */
+function formatSession(ms: number): string {
+  if (ms <= 0) return 'expired — re-sign in'
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 1) return 'under a minute — refresh imminent'
+  if (minutes < 60) return `${minutes}m left`
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m left`
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const { corpora, selected, select, canVerify } = useCorpus()
+  const sessionMs = useSessionCountdown()
   const navigate = useNavigate()
 
   const role = user?.role ?? 'ANALYST'
@@ -121,6 +132,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               {role === 'ANALYST' && ' — can propose, not approve'}
               {canVerify && role !== 'ADMIN' && ' — can approve and chair'}
             </span>
+            {sessionMs != null && (
+              <span className="who-session" role="status">
+                Session: {formatSession(sessionMs)}
+              </span>
+            )}
           </div>
           <button className="btn ghost sm" onClick={handleLogout}>
             Sign out

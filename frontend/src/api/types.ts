@@ -260,6 +260,16 @@ export interface ApprovalQueue {
   pendingClaimCount: number
 }
 
+/**
+ * `GET /api/entities/{id}`. The entity plus its aliases and the approved
+ * relations where it is the subject — the dossier's evidence surface.
+ */
+export interface EntityDetail {
+  entity: Entity
+  aliases: string[]
+  approvedRelations: Array<{ tripleId: number; predicate: string; object: string }>
+}
+
 // ---- verification ---------------------------------------------------------
 
 export type VerdictType =

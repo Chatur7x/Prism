@@ -1,29 +1,42 @@
 /**
- * Application root: auth gate, corpus selection, and routing.
+ * Application root: public routes, auth gate, corpus scope, and routing.
  *
  * <p>Route structure mirrors the pipeline itself, so the UI reads left-to-right
- * in the same order the data is produced: corpora -> documents -> approval ->
- * verification -> graph -> contradictions -> council -> reports -> chat ->
- * Glass Box.
+ * in the same order the data is produced: dashboard -> corpora -> documents ->
+ * approval -> verification -> graph -> contradictions -> council -> reports ->
+ * chat -> Glass Box.
+ *
+ * <p>Canonical decisions (see docs/FRONTEND-ROUTES.md): no /claims aliases —
+ * claims live under /verification and /verdicts. /traces redirects to
+ * /glassbox. Role denial redirects to /unauthorized instead of rendering an
+ * in-place empty state, so the URL and the UI agree.
  */
 import { Suspense, lazy } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 
 import { AppShell } from './components/AppShell'
-import { AuthProvider, RequireRole, useAuth } from './auth/AuthContext'
+import { AuthProvider, useAuth } from './auth/AuthContext'
+import type { Role } from './api/types'
+import { takeExpiredFlag } from './api/client'
 import { StaticNotice } from './components/StaticNotice'
-import { WelcomePage } from './pages/WelcomePage'
 import { CorpusProvider } from './corpus/CorpusContext'
 import { BootPage } from './pages/BootPage'
-import { Empty, Loading } from './components/ui'
+import { Loading } from './components/ui'
 
-// Every page is split out. The application has fourteen routes and a reviewer
-// typically uses three or four of them, so bundling the whole pipeline's UI into
-// the entry chunk would make the login screen wait on code it cannot use.
-//
-// BootPage stays eager: it is what an unauthenticated visitor
-// needs immediately, and code-splitting it would only add a round trip to the
-// first paint. WelcomePage is the signed-out screen (hero + sign-in).
+// Every page is split out. A reviewer typically uses three or four routes, so
+// bundling the whole pipeline's UI into the entry chunk would make the login
+// screen wait on code it cannot use. BootPage stays eager: it is what a page
+// refresh needs immediately, and code-splitting it would only add a round trip
+// to the first paint.
+const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })))
+const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })))
+const SignupPage = lazy(() => import('./pages/SignupPage').then((m) => ({ default: m.SignupPage })))
+const UnauthorizedPage = lazy(() =>
+  import('./pages/UnauthorizedPage').then((m) => ({ default: m.UnauthorizedPage })),
+)
+const DashboardPage = lazy(() =>
+  import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+)
 const CorporaPage = lazy(() => import('./pages/CorporaPage').then((m) => ({ default: m.CorporaPage })))
 const DocumentsPage = lazy(() =>
   import('./pages/DocumentsPage').then((m) => ({ default: m.DocumentsPage })),
@@ -58,20 +71,46 @@ const TraceDetailPage = lazy(() =>
 const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })))
 
 /**
- * Gate: waits for the session check, then requires authentication.
- *
- * <p>Rendered while `ready` is false so a page refresh with a valid token does
- * not flash the login screen before the token is confirmed.
+ * Signed-in visitors have no business on marketing/auth routes: send them to
+ * the dashboard instead of showing a second login form.
  */
-function AuthGate() {
+function PublicOnly({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuth()
+  if (!ready) return <BootPage />
+  if (user) return <Navigate to="/dashboard" replace />
+  return <>{children}</>
+}
 
-  return (
-    <>
-      <StaticNotice />
-      {ready ? (user ? <Authenticated /> : <WelcomePage />) : <BootPage />}
-    </>
-  )
+/**
+ * Gate: waits for the session check (no login flash on refresh with a valid
+ * token), then requires authentication. The lost destination is preserved in
+ * `returnTo`, and a 401-killed session adds `expired=1` so the login page can
+ * say the session expired rather than implying wrong credentials.
+ */
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user, ready } = useAuth()
+  const location = useLocation()
+  if (!ready) return <BootPage />
+  if (!user) {
+    const params = new URLSearchParams()
+    params.set('returnTo', location.pathname + location.search)
+    if (takeExpiredFlag()) params.set('expired', '1')
+    return <Navigate to={`/login?${params.toString()}`} replace />
+  }
+  return <>{children}</>
+}
+
+/** Role gate that redirects (URL stays truthful) instead of empty states. */
+function RequireRoleRoute({ roles, children }: { roles: Role[]; children: React.ReactNode }) {
+  const { user } = useAuth()
+  if (!user || !roles.includes(user.role)) return <Navigate to="/unauthorized" replace />
+  return <>{children}</>
+}
+
+/** Legacy /traces deep links keep working: the canonical route is /glassbox. */
+function TraceRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/glassbox/${id}`} replace />
 }
 
 /** Everything behind the auth gate: corpus scope, shell, and the routes. */
@@ -85,17 +124,16 @@ function Authenticated() {
             extra request. */}
         <Suspense fallback={<Loading label="Loading view" />}>
           <Routes>
-            <Route path="/" element={<Navigate to="/documents" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/corpora" element={<CorporaPage />} />
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/documents/:id" element={<DocumentDetailPage />} />
             <Route
               path="/approval"
               element={
-                <RequireRole roles={['VERIFIER', 'ADMIN']}
-                  fallback={<Empty title="Not permitted">The approval queue needs a verifier role.</Empty>}>
+                <RequireRoleRoute roles={['VERIFIER', 'ADMIN']}>
                   <ApprovalQueuePage />
-                </RequireRole>
+                </RequireRoleRoute>
               }
             />
             <Route path="/knowledge" element={<KnowledgePage />} />
@@ -107,31 +145,23 @@ function Authenticated() {
             <Route
               path="/debates/:id"
               element={
-                <RequireRole roles={['VERIFIER', 'ADMIN']}
-                  fallback={<Empty title="Not permitted">Council pages need a verifier role.</Empty>}>
+                <RequireRoleRoute roles={['VERIFIER', 'ADMIN']}>
                   <DebatePage />
-                </RequireRole>
+                </RequireRoleRoute>
               }
             />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/glassbox" element={<GlassBoxPage />} />
             <Route path="/glassbox/:id" element={<TraceDetailPage />} />
+            <Route path="/traces" element={<Navigate to="/glassbox" replace />} />
+            <Route path="/traces/:id" element={<TraceRedirect />} />
             <Route
               path="/admin"
               element={
-                <RequireRole
-                  roles={['ADMIN']}
-                  fallback={
-                    <Empty title="Not permitted">
-                      The administration pages need an ADMIN account. You are
-                      signed in without that role, so there is nothing to show
-                      here rather than something failing to load.
-                    </Empty>
-                  }
-                >
+                <RequireRoleRoute roles={['ADMIN']}>
                   <AdminPage />
-                </RequireRole>
+                </RequireRoleRoute>
               }
             />
             <Route path="*" element={<NotFound />} />
@@ -146,7 +176,10 @@ function NotFound() {
   return (
     <div className="empty">
       <div className="empty-title">Page not found</div>
-      <p>That route does not exist in PRISM.</p>
+      <p>
+        That route does not exist in PRISM. <Link to="/dashboard">Go to the dashboard</Link> or{' '}
+        <Link to="/">read about the product</Link>.
+      </p>
     </div>
   )
 }
@@ -154,7 +187,37 @@ function NotFound() {
 export function App() {
   return (
     <AuthProvider>
-      <AuthGate />
+      <StaticNotice />
+      <Suspense fallback={<Loading label="Loading" />}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route
+            path="/login"
+            element={
+              <PublicOnly>
+                <LoginPage />
+              </PublicOnly>
+            }
+          />
+          <Route
+            path="/signup"
+            element={
+              <PublicOnly>
+                <SignupPage />
+              </PublicOnly>
+            }
+          />
+          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+          <Route
+            path="/*"
+            element={
+              <RequireAuth>
+                <Authenticated />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      </Suspense>
     </AuthProvider>
   )
 }

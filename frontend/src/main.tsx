@@ -9,7 +9,7 @@ import './styles/components.css'
 import './styles/app.css'
 import './styles/motion.css'
 import './styles/premium.css'
-import './styles/welcome.css'
+import './styles/home.css'
 
 const container = document.getElementById('root')
 if (!container) {

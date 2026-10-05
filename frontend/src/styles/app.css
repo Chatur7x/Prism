@@ -570,3 +570,285 @@ textarea:disabled {
     color: var(--ink-2);
   }
 }
+
+/* ---- approval workspace -------------------------------------------------- */
+
+/* Three panes, in the order a reviewer actually works: what is waiting, the
+ * decision, then the evidence the decision rests on. The centre column is the
+ * only flexible one so the two rails keep their width as evidence text reflows. */
+.approval-workspace {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* Below the desktop width the evidence rail drops underneath rather than
+ * disappearing: an approver who cannot see the source sentence is being asked
+ * to decide without the evidence. */
+@media (max-width: 1200px) {
+  .approval-workspace {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+
+  .approval-evidence {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .approval-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .approval-evidence {
+    grid-column: auto;
+  }
+}
+
+/* ---- proposal list ------------------------------------------------------- */
+
+/* The proposal list is a `<ul>` reset back to a plain stack of rows. The
+ * document `li` margin is cleared so the per-row bottom border reads as one
+ * continuous hairline divider rather than a dashed one. */
+.proposal-list {
+  max-height: 60vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+}
+
+.proposal-list li {
+  margin: 0;
+}
+
+.proposal-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--line-1);
+  background: var(--surface-0);
+  color: var(--ink-0);
+  font: inherit;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proposal-item:hover {
+  background: var(--surface-1);
+}
+
+/* Selection is marked by a rule, not by colour alone: the accent band survives
+ * greyscale and does not shift the row's height. */
+.proposal-item.active {
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.proposal-item:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.proposal-label {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: 0.9rem;
+}
+
+/* ---- fact line ----------------------------------------------------------- */
+
+/* subject · predicate · object, held on one line where it fits and wrapped
+ * where it does not. A predicate that is the widest part of the triple should
+ * never be the part that forces a break. */
+.fact-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ---- graph canvas -------------------------------------------------------- */
+
+/* The canvas owns its own clipping: Cytoscape's overlay can paint outside the
+ * node layer, and `position: relative` keeps that overlay anchored here. */
+.graph-canvas {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+}
+
+/* ---- keyboard key cap ---------------------------------------------------- */
+
+/* `<kbd>` marks the single-key shortcuts the approval pane accepts. The
+ * two-pixel bottom edge is what makes it read as a physical cap rather than as
+ * another inline code span. */
+kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink-1);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+/* ---- replay player -------------------------------------------------------- */
+
+/* The Glass Box replay: transport controls, the step on screen, and the
+ * transcript it advances through. The container is focusable because
+ * Left/Right/Space step the run without reaching for the scrubber. */
+.replay-player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  background: var(--surface-0);
+}
+
+.replay-player:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.replay-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.replay-controls button {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--ink-0);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.replay-controls button:hover {
+  background: var(--surface-1);
+}
+
+/* Prev/Next grey out at the ends of the run rather than disappearing: a control
+ * that vanishes is a layout shift on every step of the replay. */
+.replay-controls button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.replay-controls button:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.replay-controls input[type='range'] {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--accent);
+}
+
+.replay-player [aria-live] {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-1);
+}
+
+.replay-player section[aria-label='Current step'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--line-1);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+}
+
+.replay-player section h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* The section carries its rhythm with flex gap, so the document `p` margin is
+ * cleared rather than stacked on top of it. */
+.replay-player section p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-1);
+}
+
+.replay-player section p[role='alert'] {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--trust-rejected-bg);
+  color: var(--trust-rejected);
+}
+
+/* The transcript is a scroll window over every step of the run. Rows are the
+ * scrub targets, so the document `li` margin is cleared to keep the bottom
+ * borders reading as one continuous hairline. */
+.replay-player ol[aria-label='Run transcript'] {
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-sm);
+}
+
+.replay-player ol li {
+  margin: 0;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.replay-player ol li:last-child {
+  border-bottom: 0;
+}
+
+.replay-player ol button {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--ink-0);
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.replay-player ol button:hover {
+  background: var(--surface-1);
+}
+
+/* The playing step is marked by ground plus weight. `aria-current` already
+ * carries it to assistive tech; this is the same fact made visible. */
+.replay-player ol button[aria-current] {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.replay-player ol button:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 700px) {
+  .replay-player ol[aria-label='Run transcript'] {
+    max-height: 240px;
+  }
+}

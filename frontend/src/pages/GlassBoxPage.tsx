@@ -9,8 +9,8 @@
  * shows is the observable execution: the request, the response, the validation
  * applied, the state changes, and the human actions. That is the auditable part.
  */
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { traceApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
@@ -21,6 +21,7 @@ import {
   ErrorState,
   Loading,
   PageHeader,
+  Pager,
   Stat,
   StatusBadge,
   formatDate,
@@ -44,9 +45,26 @@ export function GlassBoxPage() {
   const { selected } = useCorpus()
   const [operation, setOperation] = useState<string>('ALL')
 
+  const [params, setParams] = useSearchParams()
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0)
+  const gotoPage = (next: number) =>
+    setParams(next <= 0 ? {} : { page: String(next) }, { replace: true })
+  const corpusId = selected?.id
+  const prevCorpus = useRef(corpusId)
+  useEffect(() => {
+    if (prevCorpus.current !== corpusId) {
+      prevCorpus.current = corpusId
+      if (page !== 0) setParams({}, { replace: true })
+    }
+  }, [corpusId, page, setParams])
+  const pickOperation = (next: string) => {
+    setOperation(next)
+    if (page !== 0) setParams({}, { replace: true })
+  }
+
   const traces = useAsync(
-    () => (selected ? traceApi.list(selected.id, 0, 100) : Promise.resolve(null)),
-    [selected?.id],
+    () => (selected ? traceApi.list(selected.id, page) : Promise.resolve(null)),
+    [selected?.id, page],
   )
 
   if (!selected) {
@@ -96,7 +114,7 @@ export function GlassBoxPage() {
       <div className="row" style={{ marginBottom: 'var(--space-3)' }}>
         <button
           className={operation === 'ALL' ? 'btn sm primary' : 'btn sm'}
-          onClick={() => setOperation('ALL')}
+          onClick={() => pickOperation('ALL')}
         >
           All
         </button>
@@ -104,7 +122,7 @@ export function GlassBoxPage() {
           <button
             key={type}
             className={operation === type ? 'btn sm primary' : 'btn sm'}
-            onClick={() => setOperation(type)}
+            onClick={() => pickOperation(type)}
           >
             {OPERATION_LABEL[type] ?? type}
           </button>
@@ -123,8 +141,9 @@ export function GlassBoxPage() {
           <Empty title="No runs of this operation" />
         )}
         {rows.length > 0 && (
-          <div className="table-wrap">
-            <table className="data">
+          <>
+            <div className="table-wrap">
+              <table className="data">
               <thead>
                 <tr>
                   <th>Operation</th>
@@ -164,7 +183,17 @@ export function GlassBoxPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+            {traces.data && (
+              <Pager
+                page={page}
+                totalPages={traces.data.totalPages}
+                total={traces.data.totalElements}
+                onPrev={() => gotoPage(page - 1)}
+                onNext={() => gotoPage(page + 1)}
+              />
+            )}
+          </>
         )}
       </Card>
     </>
