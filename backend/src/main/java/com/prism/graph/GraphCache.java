@@ -117,7 +117,7 @@ public class GraphCache {
      * graph always produces the same rows in the same order.
      */
     @Transactional(readOnly = true)
-    @Cacheable(value = "pagerank", key = "#corpusId + ':' + #scope.name() + ':' + #verifiedIds.hashCode()")
+    @Cacheable(value = "pagerankView", key = "#corpusId + ':' + #scope.name() + ':' + #verifiedIds.hashCode()")
     public List<GraphService.PageRankRow> pagerankView(Long corpusId, GraphService.Scope scope,
                                                         Set<Long> verifiedIds) {
         KnowledgeGraph graph = buildGraph(corpusId, scope, verifiedIds);
@@ -163,7 +163,7 @@ public class GraphCache {
      * from the graph, so no additional query is needed.
      */
     @Transactional(readOnly = true)
-    @Cacheable(value = "communities", key = "#corpusId + ':' + #scope.name() + ':' + #verifiedIds.hashCode()")
+    @Cacheable(value = "communitiesView", key = "#corpusId + ':' + #scope.name() + ':' + #verifiedIds.hashCode()")
     public List<GraphService.CommunityRow> communitiesView(Long corpusId, GraphService.Scope scope,
                                                             Set<Long> verifiedIds) {
         KnowledgeGraph graph = buildGraph(corpusId, scope, verifiedIds);

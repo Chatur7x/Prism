@@ -555,6 +555,14 @@
   gap: var(--space-2);
   font-size: var(--text-overline);
   color: var(--ink-2);
+  /* Shrink to content.
+     An inline-flex element used as a *flex item* stretches to the cross axis by
+     default, so inside a column-flex panel the actor pill was drawn as a
+     full-width bar with the word floating at one end — a badge that no longer
+     reads as a badge. `align-self: start` keeps it a compact mark wherever it
+     is placed. */
+  align-self: flex-start;
+  width: fit-content;
 }
 
 .attribution .attribution-role {

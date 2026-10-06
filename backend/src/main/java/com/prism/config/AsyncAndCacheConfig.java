@@ -61,8 +61,18 @@ public class AsyncAndCacheConfig {
                 .expireAfterWrite(Duration.ofMinutes(5)));
         // Explicit allowlist: no dynamic cache names, so a typo cannot silently
         // create an unbounded cache.
+        //
+        // The `*View` caches are separate from their raw counterparts because the
+        // raw and view projections of the same graph share every input — same
+        // corpus, same scope, same verified-id set — and so would share a cache
+        // key. Two methods under one cache name with one key means whichever runs
+        // first populates it and the other reads the other's type back through
+        // an unchecked cast, which is a ClassCastException at runtime rather than
+        // a compile error. Splitting the names makes each projection cache only
+        // its own shape.
         manager.setCacheNames(java.util.Set.of(
-                "graphSnapshot", "pagerank", "communities", "verdictSummary", "skepticBrief"));
+                "graphSnapshot", "pagerank", "pagerankView", "communities", "communitiesView",
+                "verdictSummary", "skepticBrief"));
         return manager;
     }
 }

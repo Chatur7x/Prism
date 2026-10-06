@@ -104,7 +104,7 @@ export function ChatPage() {
       {sessions.error != null && <ErrorState error={sessions.error} />}
       {history.error != null && <ErrorState error={history.error} />}
 
-      <div className="grid" style={{ gridTemplateColumns: '260px minmax(0, 1fr)', gap: 'var(--space-4)' }}>
+      <div className="split-rail rail-narrow">
         <div className="stack">
           <Card title="Conversations">
             <form

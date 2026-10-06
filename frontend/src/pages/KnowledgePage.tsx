@@ -11,6 +11,7 @@ import { useSearchParams } from 'react-router-dom'
 
 import { knowledgeApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
+import { Tabs } from '../components/primitives'
 import {
   Card,
   Empty,
@@ -87,17 +88,26 @@ export function KnowledgePage() {
         }
       />
 
-      <div className="row" style={{ marginBottom: 'var(--space-4)' }}>
-        {(['triples', 'claims', 'entities'] as Tab[]).map((key) => (
-          <button
-            key={key}
-            className={tab === key ? 'btn sm primary' : 'btn sm'}
-            onClick={() => switchTab(key)}
-          >
-            {key === 'triples' ? 'Triples' : key === 'claims' ? 'Claims' : 'Entities'}
-          </button>
-        ))}
-      </div>
+      {/*
+        The shared Tabs primitive rather than three loose buttons.
+
+        This was previously a row of `btn sm primary` toggles, which meant the
+        control had no `role="tablist"`, no `aria-selected`, and no arrow-key
+        navigation — a screen-reader user was told nothing about which of the
+        three views was showing, and a keyboard user had to Tab through the
+        group instead of arrowing within it. The primitive already existed for
+        exactly this; it just was never wired up.
+      */}
+      <Tabs
+        label="Knowledge record view"
+        active={tab}
+        onChange={(next) => switchTab(next as Tab)}
+        tabs={[
+          { id: 'triples', label: 'Triples', count: triples.data?.total ?? null },
+          { id: 'claims', label: 'Claims', count: claims.data?.total ?? null },
+          { id: 'entities', label: 'Entities', count: entities.data?.length ?? null },
+        ]}
+      />
 
       {tab === 'triples' && (
         <Card title="Approved triples" flush>

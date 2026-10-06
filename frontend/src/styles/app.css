@@ -497,6 +497,49 @@ input.text {
 }
 
 /* ==========================================================================
+   RAIL + PANE SPLIT
+   ==========================================================================
+   A fixed rail beside a flexible pane, used wherever a list of choices sits
+   next to the thing being examined: chat sessions, councils, trace runs.
+
+   The rail is a fixed track, so on a narrow viewport the pane inherits
+   whatever is left — which at phone widths is a column too small to read, and
+   on Chat overflowed the viewport outright. Reflowing to a single column keeps
+   both halves usable instead of shrinking one into uselessness.
+
+   `minmax(0, 1fr)` on the flexible track is load-bearing: a bare `1fr` floors
+   at the content's min-content width, so a wide table would inflate the column
+   and the pane could never shrink. */
+
+.split-rail {
+  display: grid;
+  grid-template-columns: var(--rail-w, 280px) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.split-rail.rail-wide {
+  --rail-w: 320px;
+}
+
+.split-rail.rail-narrow {
+  --rail-w: 260px;
+}
+
+/* The same split with the rail on the right, for the replay transcript beside
+   the run summary. The variable carries the rail width whichever side it is. */
+.split-rail-rev {
+  grid-template-columns: minmax(0, 1fr) var(--rail-w, 340px);
+}
+
+@media (max-width: 900px) {
+  .split-rail,
+  .split-rail-rev {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ==========================================================================
    APPROVAL WORKSPACE
    ==========================================================================
    Three panes in the order a reviewer actually works: what is waiting, the
@@ -713,6 +756,17 @@ kbd {
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm);
   background: var(--surface-1);
+}
+
+/* A badge is a mark, not a band.
+   This panel is a column flex box, so its badge — a direct child — is stretched
+   across the cross axis by default and rendered as a full-width bar with the
+   label stranded at one end. `align-self: flex-start` restores the compact
+   pill. Scoped to this panel on purpose: a bare `.badge { align-self }` would
+   also lift badges off centre inside the horizontal `.row` containers that
+   align their children to the middle. */
+.replay-player section[aria-label='Current step'] > .badge {
+  align-self: flex-start;
 }
 
 .replay-player section h3 {

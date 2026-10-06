@@ -258,23 +258,25 @@ export function GraphCanvas({ nodes, edges, confidence, selectedId, onSelect }: 
     }))
     cy.elements().remove()
     cy.add([...nodeElements, ...edgeElements])
-    runCoseLayout(cy)
     applySelection(cy, selectedIdRef.current)
 
     /*
-     * Re-size after the layout settles.
+     * Size the viewport, then lay out — in that order, and once.
      *
-     * `fit: true` recomputes the zoom against whatever viewport the renderer
-     * currently has, so the resize has to happen *after* the layout resolves or
-     * the fit is computed against a stale box. Deferred by one frame because the
-     * layout is asynchronous, and a synchronous resize here would run before it.
+     * `fit: true` (in runCoseLayout) is applied by the layout when it *stops*,
+     * and it computes the zoom against whatever viewport the renderer has at
+     * that moment. So the resize has to happen before the layout is started;
+     * resizing afterwards fights the layout's own fit and lands the graph at
+     * whatever scale it happened to have mid-animation.
+     *
+     * Verified in a real browser: doing it the other way round left the graph
+     * occupying roughly a third of the canvas, off-centre, instead of filling it.
      */
-    requestAnimationFrame(() => {
-      const instance = cyRef.current
-      if (instance == null || instance.destroyed()) return
+    const instance = cyRef.current
+    if (instance != null && !instance.destroyed()) {
       instance.resize()
-      instance.fit(undefined, 30)
-    })
+      runCoseLayout(instance)
+    }
   }, [nodes, edges, confidence])
 
   // Restyle only when the selection changes (no relayout).

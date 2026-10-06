@@ -124,7 +124,7 @@ function renderMainContent(
   )
 
   return (
-    <div className="grid" style={{ gridTemplateColumns: '280px minmax(0, 1fr)', gap: 'var(--space-4)' }}>
+    <div className="split-rail">
       <Card title={`Councils (${debates.data?.totalElements ?? rows.length})`} flush>
         <div className="list-select">
           {rows.map((debate: Debate) => (

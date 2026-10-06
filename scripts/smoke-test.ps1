@@ -171,12 +171,35 @@ Step "Promote analyst to VERIFIER via bootstrap/admin path"
 # bootstrap route is the only way a non-admin grants a role, so this step uses
 # the DB directly to simulate what an operator would do.
 #
+# Connection details are resolved the way compose resolves them rather than
+# hardcoded. Two hardcoded values were wrong and made this step fail with
+# "db update failed": the container is named `prism-mysql` in docker-compose.yml,
+# not `prism-dev`, and the database password comes from .env rather than from the
+# compose default. Because nothing could be promoted, every check after this one
+# failed too — an access-denied user reads as an empty corpus, so the eight
+# downstream failures were all one root cause wearing eight disguises.
+$envFile = Join-Path (Split-Path $PSScriptRoot -Parent) ".env"
+if (Test-Path $envFile) {
+  Get-Content $envFile | ForEach-Object {
+    if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$') {
+      $key = $Matches[1]
+      if (-not [Environment]::GetEnvironmentVariable($key)) {
+        [Environment]::SetEnvironmentVariable($key, $Matches[2])
+      }
+    }
+  }
+}
+$dbContainer = if ($env:PRISM_MYSQL_CONTAINER) { $env:PRISM_MYSQL_CONTAINER } else { "prism-mysql" }
+$dbUser      = if ($env:DB_USERNAME)       { $env:DB_USERNAME }       else { "prism" }
+$dbPass      = if ($env:DB_PASSWORD)       { $env:DB_PASSWORD }       else { "prism" }
+$dbName      = if ($env:MYSQL_DATABASE)     { $env:MYSQL_DATABASE }     else { "prism" }
+
 # The mysql client warns about the password on the command line, and a native
 # command writing to stderr aborts the script under ErrorActionPreference=Stop.
 # Error handling is relaxed for this call only; the exit code is what we check.
 $previous = $ErrorActionPreference
 $ErrorActionPreference = "SilentlyContinue"
-$null = docker exec prism-dev mysql -uprism -pprism prism `
+$null = docker exec $dbContainer mysql "-u$dbUser" "-p$dbPass" $dbName `
   -e "UPDATE users SET role='VERIFIER' WHERE username='$analyst';" 2>&1
 $promoteExit = $LASTEXITCODE
 $ErrorActionPreference = $previous

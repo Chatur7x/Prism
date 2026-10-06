@@ -267,6 +267,13 @@
 .grid {
   display: grid;
   gap: var(--space-4);
+  /* Cards size to their own content.
+     Grid stretches items to the tallest row by default, so a card holding two
+     buttons was drawn as tall as the card beside it holding a full stat list —
+     which reads as a broken or half-loaded panel rather than as a short one.
+     Stat rows are unaffected in practice because their tiles carry equivalent
+     content and come out the same height anyway. */
+  align-items: start;
 }
 
 .grid.cols-2 {
