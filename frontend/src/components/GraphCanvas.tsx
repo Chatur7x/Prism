@@ -187,20 +187,21 @@ export function GraphCanvas({ nodes, edges, confidence, selectedId, onSelect }: 
     cyRef.current = cy
 
     /*
-     * Size the renderer explicitly, now.
+     * Size the renderer before the first paint.
      *
      * Cytoscape does not size its own canvas stack until resize() runs, and
      * until then every layer sits at the HTML default of 300x150 no matter how
-     * large the container is. Its injected stylesheet only sets `position` on
-     * the wrapper and leaves the box entirely to script timing, and the
-     * ResizeObserver below is not a reliable place to depend on for the *first*
-     * size — it exists for later viewport changes, not for initialisation.
+     * large the container is — its injected stylesheet only sets `position` on
+     * the wrapper and leaves the box entirely to script timing. The
+     * ResizeObserver below covers later viewport changes, not initialisation.
      *
-     * Relying on it alone leaves the graph painting into a 300x150 patch inside
-     * a much larger area: the layout still runs and `fit: true` still resolves,
-     * but against the wrong viewport, and because the wrapper clips its
-     * overflow the result is a blank-looking canvas rather than an obviously
-     * wrong one. Resizing here makes the first paint correct by construction.
+     * Resizing here makes the first paint correct by construction rather than
+     * dependent on when a resize happens to be observed.
+     *
+     * Note this is a no-op in a backgrounded tab: the browser suspends
+     * requestAnimationFrame for hidden tabs, and the renderer queues its work
+     * there. That is correct browser behaviour, not a fault — the graph simply
+     * renders when the tab is next shown.
      */
     cy.resize()
 
@@ -270,11 +271,9 @@ export function GraphCanvas({ nodes, edges, confidence, selectedId, onSelect }: 
      */
     requestAnimationFrame(() => {
       const instance = cyRef.current
-      if (instance === null) return
+      if (instance == null || instance.destroyed()) return
       instance.resize()
-      // The instance can be torn down between the frame being requested and it
-      // running — a fast route change to a different corpus re-runs this effect.
-      if (!instance.destroyed()) instance.fit(undefined, 30)
+      instance.fit(undefined, 30)
     })
   }, [nodes, edges, confidence])
 

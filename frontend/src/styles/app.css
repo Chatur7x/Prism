@@ -638,11 +638,7 @@ input.text {
  * That wrapper receives inline `position: relative; z-index: 0; overflow:
  * hidden` and nothing else — no width, no height. Its only children are
  * absolutely positioned canvases, so with no height of its own it collapses to
- * zero, and the canvas stack falls back to the HTML default of 300x150 no
- * matter how large the surrounding box is. The graph then renders into a
- * 300x150 patch in the corner of what is actually a 700x420 area, and because
- * the wrapper is clipped (`overflow: hidden`) the overflow is invisible rather
- * than obvious.
+ * zero and the canvas stack falls back to the HTML default of 300x150.
  *
  * The library's own injected stylesheet only sets `position` and leaves the box
  * entirely to script timing, so the box is filled here instead. This makes the
