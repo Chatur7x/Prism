@@ -121,7 +121,7 @@ export function TraceDetailPage() {
       </div>
 
       {view === 'tree' && (
-        <div className="grid" style={{ gridTemplateColumns: '320px 1fr', gap: 'var(--space-4)' }}>
+        <div className="grid" style={{ gridTemplateColumns: '320px minmax(0, 1fr)', gap: 'var(--space-4)' }}>
           <Card title="Run">
             <KeyValue
               rows={[
@@ -234,7 +234,7 @@ export function TraceDetailPage() {
           ) : (
             <div
               className="grid"
-              style={{ gridTemplateColumns: '1fr 340px', gap: 'var(--space-4)' }}
+              style={{ gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: 'var(--space-4)' }}
             >
               <Card title="Replay">
                 {/* Keyed on the run so switching runs resets the player to the

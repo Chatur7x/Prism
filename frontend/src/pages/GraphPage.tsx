@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { graphApi, knowledgeApi } from '../api/endpoints'
 import type { GraphScope } from '../api/types'
 import GraphCanvas, { type GraphConfidence } from '../components/GraphCanvas'
+import { Segmented } from '../components/primitives'
 import {
   Alert,
   Card,
@@ -210,16 +211,25 @@ export function GraphPage() {
       {refresh.error != null && <ErrorState error={refresh.error} />}
       {graph.error != null && <ErrorState error={graph.error} />}
 
-      <div className="row" style={{ marginBottom: 'var(--space-4)' }}>
-        {(['ALL_APPROVED', 'VERIFIED_ONLY'] as GraphScope[]).map((s) => (
-          <button
-            key={s}
-            className={scope === s ? 'btn sm primary' : 'btn sm'}
-            onClick={() => setScope(s)}
-          >
-            {s === 'ALL_APPROVED' ? 'All approved facts' : 'Verified claims only'}
-          </button>
-        ))}
+      {/*
+        The trust scope is the single most consequential control on this page:
+        it decides which claims are allowed to become graph edges at all. It is a
+        segmented control rather than two loose buttons because it is a two-way
+        choice over one dataset, and because `aria-pressed` is what tells a
+        screen-reader user which scope is currently in force — without it the
+        two buttons read as independent and the reviewer cannot tell what the
+        graph they are looking at is showing.
+      */}
+      <div className="spread" style={{ marginBottom: 'var(--space-4)' }}>
+        <Segmented
+          label="Trust scope"
+          segments={[
+            { id: 'ALL_APPROVED', label: 'All approved facts' },
+            { id: 'VERIFIED_ONLY', label: 'Verified claims only' },
+          ]}
+          active={scope}
+          onChange={(next) => setScope(next as GraphScope)}
+        />
         <span className="tiny muted">
           {scope === 'ALL_APPROVED'
             ? 'Every human-approved triple is an edge.'

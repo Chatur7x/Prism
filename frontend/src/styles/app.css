@@ -1,68 +1,33 @@
 /*
- * Layout and page-composition layer.
+ * Page-composition layer.
  *
- * `tokens.css` holds the design decisions as variables and `components.css`
- * holds reusable components (cards, tables, badges, buttons). This file holds
- * the things that are specific to how PRISM's screens are arranged: the
- * document reset, the app shell grid, and the composite structures that only
- * one or two pages use — the chat log, the Council chamber, the trace tree.
+ * Layer order: tokens -> components -> app -> motion -> premium -> primitives.
+ * This file owns *arrangement* — the composite structures that one or two pages
+ * use: the approval workspace, the Council chamber, the chat log, the trace tree,
+ * the replay player.
  *
- * Splitting it this way is not arbitrary. A page that needs a new look should
- * not require re-reading 665 lines of component CSS, and a change to a badge
- * should not risk reflowing the trace tree.
+ * WHAT WAS REMOVED FROM HERE, AND WHY IT MATTERS
+ *   This file previously also carried the document reset, every form control,
+ *   and the app shell. All three live in components.css. The duplication was
+ *   not harmless — it disagreed. The sidebar was 248px here and 232px there;
+ *   inputs were padded 6px/10px here and 7px/13px there; `--radius` and
+ *   `--radius-sm` were used interchangeably for the same control. Because this
+ *   file is imported after components.css, it won every conflict, which means
+ *   the values a reader would most likely consider canonical were the ones that
+ *   were being silently overridden.
+ *
+ *   One owner per concern is the whole point. If a shell dimension needs to
+ *   change it now changes in exactly one file.
  */
 
-/* ---- reset -------------------------------------------------------------- */
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--surface-1);
-  color: var(--ink-0);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-h1,
-h2,
-h3,
-h4 {
-  margin: 0;
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.011em;
-}
-
-p {
-  margin: 0 0 var(--space-3);
-}
+/* ==========================================================================
+   DOCUMENT STRUCTURE
+   ==========================================================================
+   Margin resets and list normalisation only. Anything with a colour, size, or
+   border belongs to components.css. */
 
 p:last-child {
   margin-bottom: 0;
-}
-
-a {
-  color: var(--accent);
-  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
-  text-underline-offset: 2px;
-}
-
-a:hover {
-  text-decoration-color: currentColor;
 }
 
 ul,
@@ -95,61 +60,9 @@ textarea {
   color: inherit;
 }
 
-/* Every interactive element gets the same focus treatment. Removing outlines
- * without a replacement is the single most common way an application becomes
- * unusable by keyboard, so the ring is defined once, here. */
-:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  border-radius: var(--radius-sm);
-}
-
-/* Long identifiers — trace ids, hashes, job keys — must never widen a table or
- * a card. Breaking them is correct: they are not prose. */
-.mono {
-  font-family: var(--font-mono);
-  font-size: 0.92em;
-  font-variant-ligatures: none;
-}
-
-.strong {
-  font-weight: 600;
-}
-
-.num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-/* `.small` is one step below the 14px body size, for secondary prose that
- * should not compete with the primary content but still needs to be read. */
-.small {
-  font-size: 13px;
-}
-
-/* `.text` is a multi-line input. It is not a `<textarea class>` convention for
- * its own sake: the only place PRISM takes free-form multi-line text is a
- * decision note, and that deserves a visible affordance for multiple lines. */
-textarea.text,
-input.text {
-  min-height: 72px;
-  padding: var(--space-2) var(--space-3);
-  resize: vertical;
-  line-height: 1.5;
-}
-
-/* ---- form controls ------------------------------------------------------ */
-
-input:not([type='checkbox']):not([type='radio']):not([type='range']),
-select,
-textarea {
-  width: 100%;
-  padding: 6px 10px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius);
-  background: var(--surface-0);
-  font-size: 13px;
-}
+/* Controls that components.css styles as text inputs rather than as boxes.
+   `checkbox`, `radio`, and `range` keep their native behaviour and are only
+   given the accent, so they cannot inherit the full-width text-input rule. */
 
 input[type='range'] {
   width: 100%;
@@ -161,31 +74,18 @@ input[type='radio'] {
   accent-color: var(--accent);
   width: 15px;
   height: 15px;
+  flex: 0 0 15px;
 }
 
-input::placeholder,
-textarea::placeholder {
-  color: var(--ink-3);
-}
-
-input:disabled,
-select:disabled,
-textarea:disabled {
-  background: var(--surface-2);
-  color: var(--ink-2);
-  cursor: not-allowed;
-}
-
-/* A file input needs its own treatment: the native control renders a button
- * and a truncated filename, and inside a `.field` the two together wrap badly
- * on narrow columns. */
+/* A file input renders a native button plus a truncated filename; together they
+   wrap badly inside a narrow column, so it gets an explicit drop-target. */
 .file {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
   border: 1px dashed var(--line-2);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--surface-inset);
 }
 
@@ -195,62 +95,60 @@ textarea:disabled {
   border: 0;
   padding: 0;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--text-caption);
 }
 
-/* ---- app shell ---------------------------------------------------------- */
-
-.app-shell {
-  display: grid;
-  grid-template-columns: 248px 1fr;
-  height: 100%;
-  overflow: hidden;
+/* Multi-line free text. The only place PRISM takes several lines of input is a
+   decision note, and it deserves a visible multi-line affordance. */
+textarea.text,
+input.text {
+  min-height: 72px;
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+  line-height: var(--leading-body);
 }
 
-.main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow-y: auto;
-  padding: var(--space-5) var(--space-6) var(--space-7);
+/* ==========================================================================
+   SMALL UTILITIES
+   ========================================================================== */
+
+.strong {
+  font-weight: var(--weight-semibold);
 }
 
-/* Below the tablet width the sidebar becomes a horizontal strip rather than
- * collapsing, because every one of PRISM's fourteen routes has to stay
- * reachable without a JavaScript-driven drawer. */
-@media (max-width: 900px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    overflow: auto;
-  }
-
-  .main {
-    padding: var(--space-4);
-    overflow: visible;
-  }
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ---- select lists ------------------------------------------------------- */
+.small {
+  font-size: var(--text-secondary);
+}
 
-/* Used for picking one item from many: corpora, conversations, debates.
- * A `<select>` cannot show a title, a status, and a count per option, and that
- * context is what makes a reviewer able to choose correctly. */
+/* ==========================================================================
+   SELECTION LISTS
+   ==========================================================================
+   For picking one item from many — corpora, conversations, debates. A native
+   `<select>` cannot show a title, a status, and a count per option, and that
+   context is what lets a reviewer choose correctly rather than quickly. */
+
 .list-select {
   max-height: 420px;
   overflow-y: auto;
 }
 
+/* A row is a container; the control inside it fills the row completely. Kept as
+   a div + full-bleed button rather than a button alone, because a row may also
+   carry a secondary action (Synthesise) and nesting interactive elements inside
+   a <button> is invalid and breaks keyboard semantics. */
 .list-item {
   display: block;
   width: 100%;
-  padding: var(--space-3) var(--space-4);
-  border: 0;
   border-bottom: 1px solid var(--line-1);
   border-left: 3px solid transparent;
   background: transparent;
-  text-align: left;
-  cursor: pointer;
+  color: var(--ink-0);
+  font: inherit;
 }
 
 .list-item:hover {
@@ -262,7 +160,47 @@ textarea:disabled {
   background: var(--accent-soft);
 }
 
-/* ---- chat --------------------------------------------------------------- */
+/* Full-bleed so the entire row is the hit target, with no dead padding. */
+.list-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.list-item-id {
+  line-height: var(--leading-caption);
+}
+
+.list-item-title {
+  color: var(--ink-0);
+  line-height: var(--leading-secondary);
+}
+
+.list-item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+}
+
+.list-item-actions {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+/* ==========================================================================
+   GROUNDED CHAT
+   ==========================================================================
+   One scroll container for the log, and the composer sits outside it, so the
+   input never scrolls away from the answer being read. */
 
 .chat-log {
   display: flex;
@@ -272,6 +210,9 @@ textarea:disabled {
   max-height: 58vh;
   padding: var(--space-4);
   overflow-y: auto;
+  /* Scroll anchoring keeps the viewport stable when an answer arrives above the
+     reader's current position. */
+  overflow-anchor: auto;
 }
 
 .chat-msg {
@@ -289,8 +230,9 @@ textarea:disabled {
 }
 
 /* The three assistant states are visually distinct on purpose. A refusal and a
- * grounded answer must never be scannable as the same kind of message, because
- * the whole point of the refusal is that it is not an answer. */
+   grounded answer must never be scannable as the same kind of message,
+   because the entire point of a refusal is that it is not an answer. */
+
 .chat-msg.state-refused {
   border-color: var(--trust-missing);
   background: var(--trust-missing-bg);
@@ -311,6 +253,7 @@ textarea:disabled {
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   color: var(--ink-2);
+  font-size: var(--text-overline);
 }
 
 .chat-msg-body {
@@ -318,11 +261,13 @@ textarea:disabled {
   overflow-wrap: anywhere;
 }
 
-/* ---- citations ---------------------------------------------------------- */
+/* ==========================================================================
+   CITATIONS
+   ==========================================================================
+   The left rule and the inset ground are what mark a passage as quoted source
+   rather than as PRISM's own assertion. This distinction is the whole basis of
+   the product, so it is never carried by typography alone. */
 
-/* A block of citations under an answer, an argument, or a report block. The
- * left rule and the muted ground are what mark a passage as quoted source
- * rather than as PRISM's own assertion. */
 .citations {
   display: flex;
   flex-direction: column;
@@ -332,7 +277,11 @@ textarea:disabled {
   border-left: 2px solid var(--line-2);
 }
 
-/* ---- debate stream ------------------------------------------------------ */
+/* ==========================================================================
+   LIVE EVENT STREAM
+   ==========================================================================
+   A monospaced, dense view of raw events. This is the machine's own log, not a
+   conversation, so it reads as data rather than as prose. */
 
 .stream {
   display: flex;
@@ -341,8 +290,9 @@ textarea:disabled {
   max-height: 320px;
   padding: var(--space-2) 0;
   overflow-y: auto;
+  overflow-anchor: auto;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-code);
 }
 
 .stream-row {
@@ -350,7 +300,7 @@ textarea:disabled {
   grid-template-columns: 88px 116px 1fr;
   gap: var(--space-2);
   padding: 3px var(--space-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
 
 .stream-row:nth-child(odd) {
@@ -361,7 +311,7 @@ textarea:disabled {
   color: var(--ink-2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: 10px;
+  font-size: var(--text-overline);
   padding-top: 1px;
 }
 
@@ -372,10 +322,16 @@ textarea:disabled {
   }
 }
 
-/* ---- council chamber ---------------------------------------------------- */
+/* ==========================================================================
+   COUNCIL CHAMBER
+   ==========================================================================
+   Three personas. The accent is not decoration — a reader scanning a Council
+   needs to see which voice is arguing which point without reading the name.
+   Each persona also carries a distinct left-rule treatment so the three remain
+   distinguishable in greyscale. */
 
 .round {
-  padding: var(--space-4) 0;
+  padding: var(--space-5) 0;
   border-top: 1px solid var(--line-1);
 }
 
@@ -388,17 +344,15 @@ textarea:disabled {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
 }
 
-/* Each persona is colour-coded. The colour is not decoration: a reader
- * scanning a Council needs to see at a glance which of the three voices is
- * making a given point. */
 .argument {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   border: 1px solid var(--line-1);
   border-left-width: 3px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--surface-0);
 }
 
@@ -409,11 +363,9 @@ textarea:disabled {
 .argument.persona-hawk {
   border-left-color: var(--trust-approved);
 }
-
 .argument.persona-dove {
   border-left-color: var(--trust-verified);
 }
-
 .argument.persona-skeptic {
   border-left-color: var(--actor-llm);
 }
@@ -432,11 +384,13 @@ textarea:disabled {
   overflow-wrap: anywhere;
 }
 
-/* ---- trace tree --------------------------------------------------------- */
+/* ==========================================================================
+   TRACE TREE
+   ==========================================================================
+   A run's steps as a collapsible tree. Indentation is padding on a flat row
+   rather than nested margins, so a deep run cannot accumulate collapsing
+   whitespace and shift the whole tree as it expands. */
 
-/* A run's steps as a collapsible tree. Indentation is carried by padding on a
- * wrapper row rather than by nesting margins, so a deep run cannot accumulate
- * collapsing whitespace and shift the whole tree. */
 .tree {
   display: flex;
   flex-direction: column;
@@ -448,14 +402,16 @@ textarea:disabled {
   gap: var(--space-2);
   padding: 5px var(--space-3);
   border-bottom: 1px solid var(--line-1);
+  background: var(--surface-0);
 }
 
 .tree-row:hover {
   background: var(--surface-inset);
 }
 
-/* Six levels is enough for the deepest trace the pipeline produces; deeper
- * nesting clamps rather than pushing text off screen. */
+/* Six levels covers the deepest trace the pipeline produces. Beyond that the
+   indent clamps, because text pushed off the right edge is worse than a
+   slightly shallow tree. */
 .tree-row.depth-0 { padding-left: var(--space-3); }
 .tree-row.depth-1 { padding-left: var(--space-5); }
 .tree-row.depth-2 { padding-left: var(--space-6); }
@@ -477,14 +433,17 @@ textarea:disabled {
 }
 
 .tree-detail {
-  padding-top: 4px;
-  padding-bottom: 6px;
+  padding: var(--space-2) 0;
   background: var(--surface-inset);
   border-bottom: 1px solid var(--line-1);
   overflow-wrap: anywhere;
 }
 
-/* ---- x-ray -------------------------------------------------------------- */
+/* ==========================================================================
+   X-RAY
+   ==========================================================================
+   The machine's own reasoning for one step, shown as stored evidence. Never
+   generated, never summarised: this is a replay of what was recorded. */
 
 .xray {
   display: grid;
@@ -496,7 +455,9 @@ textarea:disabled {
   padding-top: var(--space-3);
 }
 
-/* ---- fatal error -------------------------------------------------------- */
+/* ==========================================================================
+   FATAL ERROR
+   ========================================================================== */
 
 .fatal {
   display: grid;
@@ -513,7 +474,7 @@ textarea:disabled {
   border: 1px solid var(--danger);
   border-radius: var(--radius-lg);
   background: var(--surface-0);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-overlay);
 }
 
 .fatal-card h1 {
@@ -527,55 +488,21 @@ textarea:disabled {
   padding: var(--space-3);
   overflow: auto;
   border: 1px solid var(--line-1);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--surface-inset);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-code);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-/* ---- print -------------------------------------------------------------- */
+/* ==========================================================================
+   APPROVAL WORKSPACE
+   ==========================================================================
+   Three panes in the order a reviewer actually works: what is waiting, the
+   decision, then the evidence the decision rests on. Only the centre column is
+   flexible, so the two rails hold their width while evidence text reflows. */
 
-/* A synthesis report is the artefact most likely to leave the application, so
- * it has to survive printing. Navigation, controls, and buttons are dropped
- * because a printed button is a dead control on paper. */
-@media print {
-  .sidebar,
-  .page-header .btn,
-  .btn-row,
-  .spinner {
-    display: none !important;
-  }
-
-  .app-shell {
-    display: block;
-    height: auto;
-    overflow: visible;
-  }
-
-  .main {
-    overflow: visible;
-    padding: 0;
-  }
-
-  .card {
-    break-inside: avoid;
-    box-shadow: none;
-  }
-
-  a[href]::after {
-    content: ' (' attr(href) ')';
-    font-size: 11px;
-    color: var(--ink-2);
-  }
-}
-
-/* ---- approval workspace -------------------------------------------------- */
-
-/* Three panes, in the order a reviewer actually works: what is waiting, the
- * decision, then the evidence the decision rests on. The centre column is the
- * only flexible one so the two rails keep their width as evidence text reflows. */
 .approval-workspace {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr) 320px;
@@ -583,9 +510,29 @@ textarea:disabled {
   align-items: start;
 }
 
+/* Left rail: the queue. A column rather than a bare block so the filter row,
+   the scrollable list, and the pager sit as one unit without the list being
+   able to escape its own column. */
+.approval-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Centre column: the decision under review. It is not given its own surface —
+   the proposal card inside it already provides one, and two nested cards read
+   as a stack of frames rather than as a decision. */
+.approval-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 /* Below the desktop width the evidence rail drops underneath rather than
- * disappearing: an approver who cannot see the source sentence is being asked
- * to decide without the evidence. */
+   disappearing: an approver who cannot see the source sentence is being asked
+   to decide without the evidence. */
 @media (max-width: 1200px) {
   .approval-workspace {
     grid-template-columns: 300px minmax(0, 1fr);
@@ -606,11 +553,13 @@ textarea:disabled {
   }
 }
 
-/* ---- proposal list ------------------------------------------------------- */
+/* ==========================================================================
+   PROPOSAL LIST
+   ==========================================================================
+   The pending queue. A `<ul>` reset back to a plain stack, with the document
+   `li` margin cleared so the per-row bottom border reads as one continuous
+   hairline rather than a dashed one. */
 
-/* The proposal list is a `<ul>` reset back to a plain stack of rows. The
- * document `li` margin is cleared so the per-row bottom border reads as one
- * continuous hairline divider rather than a dashed one. */
 .proposal-list {
   max-height: 60vh;
   margin: 0;
@@ -618,7 +567,7 @@ textarea:disabled {
   overflow-y: auto;
   list-style: none;
   border: 1px solid var(--line-1);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
 }
 
 .proposal-list li {
@@ -628,13 +577,13 @@ textarea:disabled {
 .proposal-item {
   display: block;
   width: 100%;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3);
   border: 0;
   border-bottom: 1px solid var(--line-1);
   background: var(--surface-0);
   color: var(--ink-0);
   font: inherit;
-  line-height: 1.4;
+  line-height: var(--leading-caption);
   text-align: left;
   cursor: pointer;
 }
@@ -643,28 +592,25 @@ textarea:disabled {
   background: var(--surface-1);
 }
 
-/* Selection is marked by a rule, not by colour alone: the accent band survives
- * greyscale and does not shift the row's height. */
+/* Selection is marked by a rule, not colour alone: the accent band survives
+   greyscale and does not change the row's height. */
 .proposal-item.active {
   border-left: 2px solid var(--accent);
   background: var(--accent-soft);
 }
 
-.proposal-item:focus-visible {
-  box-shadow: var(--focus-ring);
-}
-
 .proposal-label {
   display: block;
   margin-top: var(--space-1);
-  font-size: 0.9rem;
+  font-size: var(--text-caption);
 }
 
-/* ---- fact line ----------------------------------------------------------- */
+/* ==========================================================================
+   FACT LINE
+   ==========================================================================
+   subject · predicate · object, held on one line where it fits and wrapped
+   where it does not. */
 
-/* subject · predicate · object, held on one line where it fits and wrapped
- * where it does not. A predicate that is the widest part of the triple should
- * never be the part that forces a break. */
 .fact-line {
   display: flex;
   flex-wrap: wrap;
@@ -672,51 +618,75 @@ textarea:disabled {
   gap: var(--space-2);
 }
 
-/* ---- graph canvas -------------------------------------------------------- */
+/* ==========================================================================
+   GRAPH CANVAS
+   ==========================================================================
+   `position: relative` keeps Cytoscape's overlay anchored here, since it can
+   paint outside the node layer. */
 
-/* The canvas owns its own clipping: Cytoscape's overlay can paint outside the
- * node layer, and `position: relative` keeps that overlay anchored here. */
 .graph-canvas {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line-1);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--surface-0);
 }
 
-/* ---- keyboard key cap ---------------------------------------------------- */
+/*
+ * Cytoscape sizes its own inner wrapper from JavaScript, in cy.resize().
+ *
+ * That wrapper receives inline `position: relative; z-index: 0; overflow:
+ * hidden` and nothing else — no width, no height. Its only children are
+ * absolutely positioned canvases, so with no height of its own it collapses to
+ * zero, and the canvas stack falls back to the HTML default of 300x150 no
+ * matter how large the surrounding box is. The graph then renders into a
+ * 300x150 patch in the corner of what is actually a 700x420 area, and because
+ * the wrapper is clipped (`overflow: hidden`) the overflow is invisible rather
+ * than obvious.
+ *
+ * The library's own injected stylesheet only sets `position` and leaves the box
+ * entirely to script timing, so the box is filled here instead. This makes the
+ * layout correct by construction rather than dependent on whether a resize()
+ * has already run.
+ */
+.graph-canvas > div > div {
+  width: 100%;
+  height: 100%;
+}
 
-/* `<kbd>` marks the single-key shortcuts the approval pane accepts. The
- * two-pixel bottom edge is what makes it read as a physical cap rather than as
- * another inline code span. */
+/* ==========================================================================
+   KEY CAPS
+   ==========================================================================
+   `<kbd>` marks the single-key shortcuts the approval pane accepts. The heavier
+   bottom edge is what makes it read as a physical cap rather than as another
+   inline code span. */
+
 kbd {
   padding: 1px 5px;
   border: 1px solid var(--line-2);
   border-bottom-width: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   color: var(--ink-1);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-overline);
 }
 
-/* ---- replay player -------------------------------------------------------- */
+/* ==========================================================================
+   REPLAY PLAYER
+   ==========================================================================
+   The Glass Box replay: transport, the step on screen, and the transcript it
+   advances through. The container is focusable so Left/Right/Space can drive
+   the run without reaching for the scrubber. */
 
-/* The Glass Box replay: transport controls, the step on screen, and the
- * transcript it advances through. The container is focusable because
- * Left/Right/Space step the run without reaching for the scrubber. */
 .replay-player {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   padding: var(--space-4);
   border: 1px solid var(--line-1);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--surface-0);
-}
-
-.replay-player:focus-visible {
-  box-shadow: var(--focus-ring);
 }
 
 .replay-controls {
@@ -724,32 +694,6 @@ kbd {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-}
-
-.replay-controls button {
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
-  color: var(--ink-0);
-  font-family: inherit;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-.replay-controls button:hover {
-  background: var(--surface-1);
-}
-
-/* Prev/Next grey out at the ends of the run rather than disappearing: a control
- * that vanishes is a layout shift on every step of the replay. */
-.replay-controls button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.replay-controls button:focus-visible {
-  box-shadow: var(--focus-ring);
 }
 
 .replay-controls input[type='range'] {
@@ -760,7 +704,7 @@ kbd {
 
 .replay-player [aria-live] {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-code);
   color: var(--ink-1);
 }
 
@@ -777,27 +721,25 @@ kbd {
 
 .replay-player section h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--text-section);
 }
 
-/* The section carries its rhythm with flex gap, so the document `p` margin is
- * cleared rather than stacked on top of it. */
 .replay-player section p {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--text-caption);
   color: var(--ink-1);
 }
 
 .replay-player section p[role='alert'] {
   padding: var(--space-2);
   border-radius: var(--radius-sm);
-  background: var(--trust-rejected-bg);
-  color: var(--trust-rejected);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
-/* The transcript is a scroll window over every step of the run. Rows are the
- * scrub targets, so the document `li` margin is cleared to keep the bottom
- * borders reading as one continuous hairline. */
+/* The transcript is a scroll window over every step. Rows are the scrub
+   targets, so the document `li` margin is cleared to keep the bottom borders
+   reading as one continuous hairline. */
 .replay-player ol[aria-label='Run transcript'] {
   max-height: 320px;
   margin: 0;
@@ -827,7 +769,7 @@ kbd {
   background: transparent;
   color: var(--ink-0);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
   text-align: left;
   cursor: pointer;
 }
@@ -837,18 +779,53 @@ kbd {
 }
 
 /* The playing step is marked by ground plus weight. `aria-current` already
- * carries it to assistive tech; this is the same fact made visible. */
+   carries it to assistive tech; this is the same fact made visible. */
 .replay-player ol button[aria-current] {
   background: var(--accent-soft);
-  font-weight: 600;
-}
-
-.replay-player ol button:focus-visible {
-  box-shadow: var(--focus-ring);
+  font-weight: var(--weight-semibold);
 }
 
 @media (max-width: 700px) {
   .replay-player ol[aria-label='Run transcript'] {
     max-height: 240px;
+  }
+}
+
+/* ==========================================================================
+   PRINT
+   ==========================================================================
+   A synthesis report is the artefact most likely to leave the application, so it
+   has to survive printing. Controls are dropped rather than dimmed, because a
+   printed button is a dead control on paper. */
+
+@media print {
+  .sidebar,
+  .page-header .btn,
+  .btn-row,
+  .spinner,
+  .toast-region {
+    display: none !important;
+  }
+
+  .app-shell {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  .main {
+    overflow: visible;
+    padding: 0;
+  }
+
+  .card {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+
+  a[href]::after {
+    content: ' (' attr(href) ')';
+    font-size: var(--text-overline);
+    color: var(--ink-2);
   }
 }

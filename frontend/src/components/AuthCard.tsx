@@ -72,6 +72,7 @@ export function AuthCard({
         </label>
         <input
           id={`auth-username-${mode}`}
+          name="username"
           value={username}
           onChange={(event) => setUsername(event.target.value)}
           autoComplete="username"
@@ -86,6 +87,7 @@ export function AuthCard({
           </label>
           <input
             id="auth-email"
+            name="email"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
@@ -104,6 +106,7 @@ export function AuthCard({
         <div className="auth-password-row">
           <input
             id={`auth-password-${mode}`}
+            name="password"
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(event) => setPassword(event.target.value)}

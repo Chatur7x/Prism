@@ -17,8 +17,6 @@ import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-rou
 import { AppShell } from './components/AppShell'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import type { Role } from './api/types'
-import { takeExpiredFlag } from './api/client'
-import { StaticNotice } from './components/StaticNotice'
 import { CorpusProvider } from './corpus/CorpusContext'
 import { BootPage } from './pages/BootPage'
 import { Loading } from './components/ui'
@@ -81,25 +79,6 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/**
- * Gate: waits for the session check (no login flash on refresh with a valid
- * token), then requires authentication. The lost destination is preserved in
- * `returnTo`, and a 401-killed session adds `expired=1` so the login page can
- * say the session expired rather than implying wrong credentials.
- */
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, ready } = useAuth()
-  const location = useLocation()
-  if (!ready) return <BootPage />
-  if (!user) {
-    const params = new URLSearchParams()
-    params.set('returnTo', location.pathname + location.search)
-    if (takeExpiredFlag()) params.set('expired', '1')
-    return <Navigate to={`/login?${params.toString()}`} replace />
-  }
-  return <>{children}</>
-}
-
 /** Role gate that redirects (URL stays truthful) instead of empty states. */
 function RequireRoleRoute({ roles, children }: { roles: Role[]; children: React.ReactNode }) {
   const { user } = useAuth()
@@ -115,15 +94,23 @@ function TraceRedirect() {
 
 /** Everything behind the auth gate: corpus scope, shell, and the routes. */
 function Authenticated() {
+  const { ready } = useAuth()
+  const location = useLocation()
+  if (!ready) return <BootPage />
+
   return (
     <CorpusProvider>
       <AppShell>
-        {/* The boundary is deliberately inside AppShell, so the navigation and
-            corpus selector stay on screen while a page chunk loads. Losing the
-            whole shell on every route change would be a worse trade than the
-            extra request. */}
         <Suspense fallback={<Loading label="Loading view" />}>
-          <Routes>
+          {/*
+            Keyed on the pathname so each route remounts and replays its enter
+            transition. Deliberately the pathname and not the whole location:
+            changing a query string — a filter, a page number, a search term —
+            is a state change within a page, not a navigation, and animating it
+            would make every keystroke in a search box feel like a page load.
+          */}
+          <div className="route-view" key={location.pathname}>
+            <Routes>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/corpora" element={<CorporaPage />} />
             <Route path="/documents" element={<DocumentsPage />} />
@@ -165,7 +152,8 @@ function Authenticated() {
               }
             />
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </div>
         </Suspense>
       </AppShell>
     </CorpusProvider>
@@ -187,7 +175,6 @@ function NotFound() {
 export function App() {
   return (
     <AuthProvider>
-      <StaticNotice />
       <Suspense fallback={<Loading label="Loading" />}>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -210,11 +197,7 @@ export function App() {
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           <Route
             path="/*"
-            element={
-              <RequireAuth>
-                <Authenticated />
-              </RequireAuth>
-            }
+            element={<Authenticated />}
           />
         </Routes>
       </Suspense>

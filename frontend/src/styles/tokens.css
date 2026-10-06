@@ -1,89 +1,354 @@
 /*
- * PRISM design tokens.
+ * PRISM design tokens — the single source of truth for the visual language.
  *
- * Serious analytical-tool aesthetic: high information density, restrained
- * palette, typography that favours reading long evidence text.
+ * WHAT THIS FILE IS FOR
+ *   Every value a page can reach for lives here. A component reads a token; it
+ *   does not invent a size. That is the whole discipline: when the interface
+ *   looks coherent it is because there was exactly one place a decision could
+ *   be made, and when it drifts it is because someone bypassed this file.
  *
- * ACCESSIBILITY: trust level is never encoded in colour alone. Every status
- * badge carries a text label and a distinct shape/border treatment, so the
- * distinction survives greyscale, colour-blindness, and screen readers.
+ * LAYER ORDER
+ *   tokens -> components -> app -> motion -> premium -> primitives. Each layer
+ *   only ever refines the one before it, so any single file can be read alone.
+ *
+ * TWO INVARIANTS ENCODED HERE
+ *   1. TRUST IS NEVER COLOUR ALONE. Every trust/state token ships with a
+ *      matching border-style token (`--trust-*-border`), and `StatusBadge`
+ *      renders a text label as well. Remove all colour from the product and
+ *      APPROVED vs PENDING vs REJECTED must still be distinguishable. In an
+ *      audit tool that is not a nicety; it is the difference between reading
+ *      the record correctly and not.
+ *   2. MOTION IS RHYTHM, NOT DECORATION. Durations and easings live here so
+ *      the whole app shares one pulse. See `--dur-*` and `--ease-*` below.
  */
+
+/* ==========================================================================
+   1. TYPOGRAPHY
+   ==========================================================================
+   A named scale, because "22px" is not a design decision anyone can audit and
+   "page-title" is. Sizes use rem so a user's browser text-size setting scales
+   the layout with it instead of breaking it (apple-design §15).
+
+   Tracking is size-specific and signed accordingly: large text gets negative
+   tracking (letters read too far apart as they grow), small text gets slightly
+   positive tracking for legibility. Leading runs the same way — tight on
+   headings, looser on evidence prose, and deliberately tight again on table
+   data where density is the point. */
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  /* Mono is for machine identity: trace ids, source offsets, enum values,
+     durations. Anything a human reads as prose uses --font-sans. */
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  /* -- display: marketing shell only, never inside the app --------------- */
+  --text-display: 2.75rem;
+  --leading-display: 1.05;
+  --tracking-display: -0.028em;
+
+  /* -- page title: the h1 of a route ------------------------------------- */
+  --text-title: 1.375rem; /* 22px */
+  --leading-title: 1.25;
+  --tracking-title: -0.018em;
+
+  /* -- section title: a card's h2 ---------------------------------------- */
+  --text-section: 1.0625rem; /* 17px */
+  --leading-section: 1.3;
+  --tracking-section: -0.012em;
+
+  /* -- card title: a card's h3, a row group ------------------------------ */
+  --text-card-title: 0.9375rem; /* 15px */
+  --leading-card-title: 1.35;
+  --tracking-card-title: -0.006em;
+
+  /* -- body: prose a reviewer reads for minutes -------------------------- */
+  --text-body: 0.875rem; /* 14px */
+  --leading-body: 1.55;
+  --tracking-body: 0;
+
+  /* -- secondary: supporting prose, still read, not the subject ----------- */
+  --text-secondary: 0.8125rem; /* 13px */
+  --leading-secondary: 1.5;
+  --tracking-secondary: 0;
+
+  /* -- caption: metadata, hints, table headers --------------------------- */
+  --text-caption: 0.75rem; /* 12px */
+  --leading-caption: 1.45;
+  --tracking-caption: 0.004em;
+
+  /* -- overline: uppercase micro-labels. The system's structural voice ---- */
+  --text-overline: 0.6875rem; /* 11px */
+  --leading-overline: 1.3;
+  --tracking-overline: 0.07em;
+
+  /* -- code/trace: machine identity. Dense, so leading is tight ----------- */
+  --text-code: 0.75rem; /* 12px */
+  --leading-code: 1.5;
+  --tracking-code: 0;
+
+  /* -- data/table: tabular numerals, tight. Never wraps. ----------------- */
+  --text-data: 0.8125rem; /* 13px */
+  --leading-data: 1.4;
+  --tracking-data: 0;
+
+  /* -- stat: a single number that is the point of the tile -------------- */
+  --text-stat: 1.625rem; /* 26px */
+  --leading-stat: 1.15;
+  --tracking-stat: -0.02em;
+
+  /* Weights. 650 is deliberate: it reads as emphatic without the visual
+     shouting of 700, and it pairs with the tight stat tracking above. */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-emphasis: 650;
+  --weight-strong: 700;
+}
+
+/* ==========================================================================
+   2. SPACING
+   ==========================================================================
+   A 4px base scale. It is not arbitrary: 4 divides evenly by 2 and 3, which is
+   what makes nested padding add up to something visual rather than merely
+   legal. The ladder deliberately skips nothing in the 4-64 range, because a
+   gap in a scale is where one-off values creep in. */
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* Semantic aliases. Components should use these, not the raw ladder, so
+     that a change of rhythm is a change here and not an audit of 40 files. */
+  --gap-tight: var(--space-2);
+  --gap-default: var(--space-4);
+  --gap-loose: var(--space-6);
+  --pad-card: var(--space-4);
+  --pad-panel: var(--space-6);
+  --pad-page: var(--space-7);
+}
+
+/* ==========================================================================
+   3. RADIUS
+   ==========================================================================
+   Four steps, chosen by the size and role of the surface rather than by taste.
+   Restrained on purpose: PRISM is an analytical tool, and a UI of uniformly
+   rounded pills reads as consumer software no matter how good the type is. */
+
+:root {
+  --radius-xs: 2px; /* badges, inline code, hairlines inside controls */
+  --radius-sm: 4px; /* small controls: inputs, selects, buttons, tabs */
+  --radius-md: 6px; /* cards, tables, panels — the workhorse */
+  --radius-lg: 10px; /* modals, drawers, feature panels */
+  --radius-pill: 999px; /* status dots and badges only */
+}
+
+/* ==========================================================================
+   4. SURFACE, INK, LINE
+   ==========================================================================
+   Surfaces ascend in elevation: 0 is the page, 1 is raised chrome, 2 is a
+   control, 3 is a hover/active control, inset is recessed (evidence, code).
+   Separating a surface is done with a one-pixel line first and shadow second,
+   because a line is cheaper to read and does not fight the content. */
 
 :root {
   color-scheme: light dark;
 
-  /* Surfaces */
-  --surface-0: #ffffff;
-  --surface-1: #f7f8fa;
-  --surface-2: #eef0f4;
-  --surface-3: #e3e6ec;
-  --surface-inset: #f2f4f7;
+  --surface-0: #ffffff; /* page + card */
+  --surface-1: #f7f8fa; /* app background, sticky table head */
+  --surface-2: #eef0f4; /* controls, hover fills */
+  --surface-3: #e3e6ec; /* pressed controls, scrollbar thumb */
+  --surface-inset: #f2f4f7; /* recessed: evidence, code, empty states */
 
-  /* Ink */
-  --ink-0: #12151a;
-  --ink-1: #3d4451;
-  --ink-2: #6b7382;
-  --ink-3: #98a0af;
+  --ink-0: #12151a; /* primary text */
+  --ink-1: #3d4451; /* secondary text */
+  --ink-2: #6b7382; /* metadata, labels */
+  --ink-3: #98a0af; /* placeholder, disabled */
+  --ink-inverse: #ffffff;
 
-  /* Lines */
-  --line-1: #dde1e8;
-  --line-2: #c6ccd6;
+  --line-1: #dde1e8; /* default separator */
+  --line-2: #c6ccd6; /* stronger separator, control border */
 
-  /* Accent: the "prism" mark */
+  /* The one translucent surface in the product, and it is structural rather
+     than decorative: navigation chrome, so the record scrolls visibly beneath
+     it. Blur is kept modest (14px) on purpose — a heavy backdrop-filter over a
+     dense analytical table costs frame time and destroys the numerals. */
+  --surface-nav: rgba(255, 255, 255, 0.82);
+  --surface-scrim: rgba(18, 21, 26, 0.4);
+  --surface-glass: rgba(255, 255, 255, 0.7);
+
+  --shadow-sm: 0 1px 2px rgba(18, 21, 26, 0.06);
+  --shadow-md: 0 2px 6px rgba(18, 21, 26, 0.08);
+  --shadow-lg: 0 8px 24px rgba(18, 21, 26, 0.12);
+  /* Overlays get a wider, softer shadow: a larger surface should read as
+     thicker, which is how the eye infers that it is nearer. */
+  --shadow-overlay: 0 12px 40px rgba(18, 21, 26, 0.22);
+
+  --focus-ring: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--accent);
+}
+
+/* ==========================================================================
+   5. ACCENT
+   ========================================================================== */
+
+:root {
   --accent: #2f5fd0;
+  --accent-hover: #2b57bd;
   --accent-ink: #ffffff;
   --accent-soft: #e8eefc;
+  --accent-line: color-mix(in srgb, var(--accent) 35%, transparent);
+}
 
-  /* Trust semantics. Always paired with a label in the UI. */
+/* ==========================================================================
+   6. TRUST AND STATUS
+   ==========================================================================
+   Each trust level is three tokens: ink, a low-chroma fill, and a border
+   treatment. The third is the important one — it is the channel that survives
+   greyscale and colour-vision deficiency, and it is why `--trust-*-border`
+   exists at all. Colour here is reinforcement, never the carrier of meaning.
+
+   The fill tokens sit at roughly 8% chroma so a row of fifty badges reads as
+   a field of quiet marks rather than a traffic light. */
+
+:root {
+  /* approved knowledge — the record has been accepted by a human */
   --trust-approved: #1c7a4a;
   --trust-approved-bg: #e3f5ec;
+  --trust-approved-border: solid;
+
+  /* pending / proposed — a promise, not a fact. Dashed: still open. */
   --trust-pending: #8a5a00;
   --trust-pending-bg: #fdf1dc;
+  --trust-pending-border: dashed;
+
+  /* rejected / failed — refused. Solid, same weight as approved: a rejection
+     is as settled as an approval. */
   --trust-rejected: #a32b2b;
   --trust-rejected-bg: #fceaea;
+  --trust-rejected-border: solid;
+
+  /* verified — a machine verdict reached and recorded. Double-weight border
+     marks it as a stronger claim than plain approval. */
   --trust-verified: #1d5f8a;
   --trust-verified-bg: #e2f0f9;
+  --trust-verified-border: double;
+
+  /* contradicted — two records disagree. The one state where more visual
+     weight genuinely helps, because it is the one a reviewer must not miss. */
   --trust-contradicted: #8a2f6b;
   --trust-contradicted-bg: #fae6f3;
+  --trust-contradicted-border: double;
+
+  /* no usable source — absence, not disagreement. Dotted reads as "nothing
+     here", which is exactly what SOURCE_MISSING and INSUFFICIENT_EVIDENCE
+     mean, and keeps them visually apart from CONTRADICTED. */
   --trust-missing: #5a5f6b;
   --trust-missing-bg: #eceef2;
+  --trust-missing-border: dotted;
 
-  /* Actor semantics, used by the Glass Box */
-  --actor-engine: #2f5fd0;
-  --actor-engine-bg: #e8eefc;
-  --actor-llm: #6a3bb5;
-  --actor-llm-bg: #f0e8fb;
-  --actor-human: #1c7a4a;
-  --actor-human-bg: #e3f5ec;
+  /* plain informational */
+  --trust-neutral: #3d4451;
+  --trust-neutral-bg: #eef0f4;
+  --trust-neutral-border: solid;
 
   --danger: #a32b2b;
   --danger-bg: #fceaea;
   --warning: #8a5a00;
   --warning-bg: #fdf1dc;
-
-  --radius-sm: 3px;
-  --radius: 5px;
-  --radius-lg: 8px;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
-
-  --shadow-sm: 0 1px 2px rgba(18, 21, 26, 0.06);
-  --shadow: 0 2px 6px rgba(18, 21, 26, 0.08);
-  --shadow-lg: 0 8px 24px rgba(18, 21, 26, 0.12);
-
-  --focus-ring: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--accent);
+  --info: #1d5f8a;
+  --info-bg: #e2f0f9;
+  --success: #1c7a4a;
+  --success-bg: #e3f5ec;
 }
+
+/* ==========================================================================
+   7. ACTORS — ENGINE / LLM / HUMAN
+   ==========================================================================
+   The single most important distinction in the product, so it gets its own
+   tokens rather than borrowing trust colours. The architectural invariant is
+   that deterministic Java owns the record, the model only proposes, and the
+   human verifier decides; these three tokens are how that reads on screen.
+
+   Actor badges also vary border style (solid / dashed / double) for the same
+   reason trust does, so ENGINE vs LLM vs HUMAN survives greyscale. */
+
+:root {
+  --actor-engine: #2f5fd0; /* deterministic Java: chunking, rules, retrieval */
+  --actor-engine-bg: #e8eefc;
+  --actor-llm: #6a3bb5; /* model output: proposals, synthesis */
+  --actor-llm-bg: #f0e8fb;
+  --actor-human: #1c7a4a; /* the final authority */
+  --actor-human-bg: #e3f5ec;
+}
+
+/* ==========================================================================
+   8. MOTION
+   ==========================================================================
+   One vocabulary, one place. Nothing in the codebase should carry a raw
+   millisecond value.
+
+   Durations are for changes a user did not drag: fades, colour, hovers.
+   Anything that moves in space gets a spring instead (see the spring tokens),
+   because a fixed duration cannot be interrupted and an interrupted transition
+   snaps.
+
+   The ladder is short on purpose. 90ms is "already happened" — too fast to
+   notice, which is right for press feedback. 180ms is the default for state.
+   320ms is reserved for something entering or leaving the page. Anything
+   slower than 320ms is a delay the user pays for, and in an audit tool that
+   is a bug. */
+
+:root {
+  /* durations */
+  --dur-instant: 90ms; /* press feedback */
+  --dur-fast: 180ms; /* default: hover, focus, colour, opacity */
+  --dur-enter: 320ms; /* something arriving: route, modal, drawer */
+  --dur-stagger-step: 30ms; /* per-row cascade */
+
+  /* easings. Named by what they do, not by shape. */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1); /* in place, out of place */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1); /* decelerate into arrival */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1); /* accelerate out of departure */
+
+  /* Spring presets, expressed as cubic-béziers with no overshoot.
+     A real spring needs a JS driver; for declarative CSS these equivalents give
+     the same settle shape and stay interruptible enough for panels and cards.
+     They are critically damped on purpose: an analytical UI that bounces
+     reads as unserious about the record. */
+  --spring-snappy: cubic-bezier(0.22, 1, 0.36, 1); /* controls, chips, badges */
+  --spring-standard: cubic-bezier(0.16, 1, 0.3, 1); /* cards, panels */
+  --spring-soft: cubic-bezier(0.25, 0.8, 0.25, 1); /* large surfaces */
+
+  /* Distance tokens: how far things travel. Kept small. A panel that slides
+     in from 400px away makes the user wait for information they asked for. */
+  --travel-tight: 4px;
+  --travel-default: 8px;
+  --travel-loose: 16px;
+
+  /* Layer scale. Anything that must sit above content uses these, never a
+     bare z-index, so a new overlay can be slotted in without archaeology. */
+  --z-nav: 10;
+  --z-sticky: 20;
+  --z-overlay: 40;
+  --z-toast: 60;
+}
+
+/* ==========================================================================
+   9. DARK THEME
+   ==========================================================================
+   Overrides the same token names, so no component knows which theme is active.
+   Not a second palette: the light and dark values are the same eight hues
+   re-picked for their background, which is why a component written once reads
+   correctly in both. */
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -97,11 +362,13 @@
     --ink-1: #c3cad4;
     --ink-2: #949cab;
     --ink-3: #6b7381;
+    --ink-inverse: #10141b;
 
     --line-1: #2b313a;
     --line-2: #3a414c;
 
     --accent: #7ba0f0;
+    --accent-hover: #8fb0f5;
     --accent-ink: #10141b;
     --accent-soft: #1c2740;
 
@@ -117,6 +384,17 @@
     --trust-contradicted-bg: #301a29;
     --trust-missing: #9aa2b0;
     --trust-missing-bg: #23272e;
+    --trust-neutral: #c3cad4;
+    --trust-neutral-bg: #23272e;
+
+    --danger: #e08585;
+    --danger-bg: #331a1a;
+    --warning: #dba44a;
+    --warning-bg: #322611;
+    --info: #74b6e0;
+    --info-bg: #16293a;
+    --success: #63c294;
+    --success-bg: #16301f;
 
     --actor-engine: #7ba0f0;
     --actor-engine-bg: #1c2740;
@@ -125,18 +403,24 @@
     --actor-human: #63c294;
     --actor-human-bg: #16301f;
 
-    --danger: #e08585;
-    --danger-bg: #331a1a;
-    --warning: #dba44a;
-    --warning-bg: #322611;
+    --surface-nav: rgba(20, 23, 28, 0.82);
+    --surface-scrim: rgba(0, 0, 0, 0.55);
+    --surface-glass: rgba(26, 30, 36, 0.72);
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.45);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+    --shadow-overlay: 0 12px 40px rgba(0, 0, 0, 0.65);
   }
 }
 
-* {
+/* ==========================================================================
+   10. BASE
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -149,12 +433,16 @@ body,
 
 body {
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  letter-spacing: var(--tracking-body);
   color: var(--ink-0);
   background: var(--surface-1);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Long evidence passages and source text are read for minutes at a time, so
+     the reading measure is capped rather than left to the viewport. */
+  text-wrap: pretty;
 }
 
 h1,
@@ -162,22 +450,29 @@ h2,
 h3,
 h4 {
   margin: 0 0 var(--space-3);
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  font-weight: var(--weight-semibold);
 }
 
+/* Hierarchy from the type scale, not from per-page overrides. */
 h1 {
-  font-size: 22px;
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  letter-spacing: var(--tracking-title);
 }
 h2 {
-  font-size: 17px;
+  font-size: var(--text-section);
+  line-height: var(--leading-section);
+  letter-spacing: var(--tracking-section);
 }
 h3 {
-  font-size: 15px;
+  font-size: var(--text-card-title);
+  line-height: var(--leading-card-title);
+  letter-spacing: var(--tracking-card-title);
 }
 h4 {
-  font-size: 13px;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--ink-1);
 }
 
 p {
@@ -187,6 +482,10 @@ p {
 a {
   color: var(--accent);
   text-decoration: none;
+  /* Underline on hover rather than always: a dense analytical UI with every
+     link underlined reads as a form, not a workspace. Focus still underlines,
+     so keyboard users are not worse off. */
+  text-underline-offset: 2px;
 }
 a:hover {
   text-decoration: underline;
@@ -196,15 +495,53 @@ code,
 pre,
 .mono {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  letter-spacing: var(--tracking-code);
+  font-variant-ligatures: none;
 }
 
-/* Visible focus for keyboard users only. */
+/* Visible focus, for keyboard users only. Never removed for tidiness: a
+   reviewer working a fifty-row queue without a mouse has no other cue. */
 :focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
+
+/* Announced but not painted. Used by the loading and empty states, which need
+   a live region so the reviewer is told the page is populating, without a
+   visible duplicate of that label sitting next to the shapes it stands in for.
+   Clipped rather than `display:none`, because a hidden element is removed from
+   the accessibility tree and that is the opposite of the point. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Pointer users who click a control should not keep a ring afterwards. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* ==========================================================================
+   11. GLOBAL REDUCED MOTION
+   ==========================================================================
+   A safety net. Each layer also revokes its own motion in more detail, because
+   "reduce" is not the same as "delete": the information a motion carried has
+   to survive somewhere else. This block guarantees that nothing can move by
+   default; the per-layer blocks preserve meaning without movement. */
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -213,5 +550,6 @@ pre,
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

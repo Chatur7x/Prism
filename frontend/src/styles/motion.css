@@ -1,73 +1,167 @@
 /*
  * Motion layer.
  *
- * `tokens.css` holds the design decisions, `components.css` the components,
- * `app.css` the page composition. This file holds *how things move* and nothing
- * else, so motion can be reviewed, tuned, and disabled in one place.
+ * `tokens.css` holds the vocabulary, `components.css` the components, `app.css`
+ * the page composition, and this file *only* how things move. Keeping it
+ * separate is what makes motion reviewable: every animated thing in PRISM is
+ * findable by reading one file, which is the only way to answer "does the whole
+ * product share one rhythm?" with evidence instead of hope.
  *
- * The discipline comes from Apple's fluid-interfaces system (WWDC: Designing
- * Fluid Interfaces): feedback on press rather than release, enter along one
- * path, interruptible short transitions, and restraint — this is an audit tool,
- * so motion earns its place by orienting the reviewer (where did this panel
- * come from, what just changed) and never by decorating. No bounce, no elastic
- * overshoot, no full-viewport movement anywhere in this file.
+ * THE RULE EVERY RULE HERE ANSWERS TO
+ *   An animation exists to answer "what changed?". If a change can be
+ *   communicated without motion, it is communicated without motion. PRISM has
+ *   no floating decoration, no infinite loops except on genuinely-pending
+ *   state, no scroll effects, no parallax, and no animation on hover that does
+ *   not report a real interaction.
  *
- * All motion is transform/opacity only (compositor-friendly, no layout thrash),
- * and every rule below is revoked under `prefers-reduced-motion` at the foot of
- * the file.
+ * THE RESTRAINT IS EARNED
+ *   Everything here is transform and opacity only. No width, no height, no
+ *   top/left, no filter animation on large areas. Those force layout or paint
+ *   on every frame, and an approval queue that janks while a reviewer is
+ *   deciding whether a claim is true is a worse product than one that never
+ *   animated at all.
+ *
+ * Sources for the physics choices are in tokens.css; this file is the
+ * application of them.
  */
 
-:root {
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-instant: 100ms;
-  --dur-fast: 180ms;
-  --dur-enter: 320ms;
-  --dur-stagger-step: 35ms;
+/* ==========================================================================
+   1. PRESS FEEDBACK
+   ==========================================================================
+   Respond on pointer-DOWN, not on release (apple-design §1). Waiting for click
+   to acknowledge a press is the single biggest reason an interface feels dead,
+   and it is free to fix. The compression is deliberately small — 3% — because
+   this is a trust instrument: a control that visibly recoils reads as toy-like,
+   while a 1px optical settle reads as solid. */
+
+.btn,
+.nav-link,
+.pager .btn,
+select,
+input[type='checkbox'],
+input[type='radio'] {
+  transition:
+    transform var(--dur-instant) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
 }
 
-/* ---- press feedback -------------------------------------------------------
- * The button answers on pointer-down, not on release. `.btn:active` already
- * exists in components.css; this extends the same instant language to nav
- * links and table rows so everything pressable behaves like one system. */
-
-.nav-link {
-  transition: transform var(--dur-instant) ease-out, background-color var(--dur-fast) ease-out;
-}
+.btn:active:not(:disabled),
 .nav-link:active {
   transform: scale(0.97);
 }
-.btn {
-  transition: transform var(--dur-instant) ease-out, background-color var(--dur-fast) ease-out,
-    border-color var(--dur-fast) ease-out, box-shadow var(--dur-fast) ease-out;
+
+.nav-link:active {
+  transform: scale(0.985);
 }
 
-/* ---- page enter ------------------------------------------------------------
- * Each route mounts fresh, so these run once per navigation: the header
- * arrives first and settles, then the content follows along the same downward
- * path. Enter and exit share the path (symmetric by construction — exit is
- * simply unmount, no competing animation). */
+/* ==========================================================================
+   2. ROUTE TRANSITIONS
+   ==========================================================================
+   Every route mounts fresh, so this runs once per navigation. Content arrives
+   from a short distance below and settles; there is no outgoing animation
+   because unmounting is instantaneous and a competing exit would double the
+   wait.
 
+   The distance is 6px and the duration 320ms, which is at the top of the
+   permitted range and still under the ~400ms threshold where a transition
+   starts to feel like latency rather than orientation. The movement is small
+   because a reviewer navigates these routes dozens of times an hour; a large
+   entrance would become the most noticeable thing on the page. */
+
+.route-view {
+  animation: route-enter var(--dur-enter) var(--ease-enter) both;
+}
+
+@keyframes route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--travel-default));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The header leads and the content follows, both on the same downward path, so
+   the page assembles in reading order rather than appearing as one block. */
 .page-header {
-  animation: page-in var(--dur-enter) var(--ease-out) both;
+  animation: route-enter var(--dur-enter) var(--ease-enter) both;
 }
+
 .card {
-  animation: card-in var(--dur-enter) var(--ease-out) both;
+  animation: route-enter var(--dur-enter) var(--ease-enter) both;
 }
-@keyframes page-in {
+
+/* ==========================================================================
+   3. STAGGER
+   ==========================================================================
+   Rows arrive in reading order so a fifty-row queue reads as a list filling
+   rather than a wall appearing. Hard-capped at 12 rows: past that the tail of
+   the delay would exceed 360ms and the reviewer would be waiting on
+   choreography instead of reading. Row 12 and row 13 appear together, which is
+   the correct trade.
+
+   Escape hatch: anything that re-sorts or live-updates opts out with
+   `.no-stagger` on an ancestor, because every re-render would otherwise replay
+   the whole cascade and turn a status change into a full-page flash.
+
+   The index is applied with `:nth-child` rather than a custom property set from
+   JavaScript. A JS-driven index would need a wrapper component or an inline
+   style at every call site, which means it silently stops working the first
+   time someone adds a table without remembering it — a cascade that can rot is
+   worse than no cascade. `:nth-child` needs nothing and cannot be forgotten. */
+
+table.data tbody tr,
+.stack > .card,
+.grid > .card {
+  animation: row-enter var(--dur-enter) var(--ease-enter) both;
+}
+
+table.data tbody tr:nth-child(1),
+.stack > .card:nth-child(1),
+.grid > .card:nth-child(1) { animation-delay: 0ms; }
+table.data tbody tr:nth-child(2),
+.stack > .card:nth-child(2),
+.grid > .card:nth-child(2) { animation-delay: calc(1 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(3),
+.stack > .card:nth-child(3),
+.grid > .card:nth-child(3) { animation-delay: calc(2 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(4),
+.stack > .card:nth-child(4),
+.grid > .card:nth-child(4) { animation-delay: calc(3 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(5),
+.stack > .card:nth-child(5),
+.grid > .card:nth-child(5) { animation-delay: calc(4 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(6),
+.stack > .card:nth-child(6),
+.grid > .card:nth-child(6) { animation-delay: calc(5 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(7),
+.stack > .card:nth-child(7),
+.grid > .card:nth-child(7) { animation-delay: calc(6 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(8),
+.stack > .card:nth-child(8),
+.grid > .card:nth-child(8) { animation-delay: calc(7 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(9),
+.stack > .card:nth-child(9),
+.grid > .card:nth-child(9) { animation-delay: calc(8 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(10),
+.stack > .card:nth-child(10),
+.grid > .card:nth-child(10) { animation-delay: calc(9 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(11),
+.stack > .card:nth-child(11),
+.grid > .card:nth-child(11) { animation-delay: calc(10 * var(--dur-stagger-step)); }
+table.data tbody tr:nth-child(n + 12),
+.stack > .card:nth-child(n + 12),
+.grid > .card:nth-child(n + 12) { animation-delay: calc(11 * var(--dur-stagger-step)); }
+
+@keyframes row-enter {
   from {
     opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(var(--travel-tight));
   }
   to {
     opacity: 1;
@@ -75,147 +169,595 @@
   }
 }
 
-/* ---- table row stagger ------------------------------------------------------
- * Rows arrive in reading order, each slightly after the last, so a 50-row
- * approval queue reads as a list filling rather than a wall appearing. Capped
- * at 15 rows: beyond that the delay would punish large tables, and a reviewer
- * scrolling a long queue should never wait on choreography.
- *
- * Escape hatch: a page that re-sorts or live-updates its table can opt out
- * with `no-stagger` on any ancestor, since every remount would otherwise
- * replay the cascade. */
-
-table.data tbody tr {
-  animation: row-in var(--dur-enter) var(--ease-out) both;
-}
-table.data tbody tr:nth-child(1) { animation-delay: calc(1 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(2) { animation-delay: calc(2 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(3) { animation-delay: calc(3 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(4) { animation-delay: calc(4 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(5) { animation-delay: calc(5 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(6) { animation-delay: calc(6 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(7) { animation-delay: calc(7 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(8) { animation-delay: calc(8 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(9) { animation-delay: calc(9 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(10) { animation-delay: calc(10 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(11) { animation-delay: calc(11 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(12) { animation-delay: calc(12 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(13) { animation-delay: calc(13 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(14) { animation-delay: calc(14 * var(--dur-stagger-step)); }
-table.data tbody tr:nth-child(n + 15) { animation-delay: calc(15 * var(--dur-stagger-step)); }
 .no-stagger table.data tbody tr,
 .no-stagger .card,
-.no-stagger .page-header {
+.no-stagger .page-header,
+.no-stagger .route-view,
+.no-stagger .stack > .card,
+.no-stagger .grid > .card {
   animation: none;
 }
-@keyframes row-in {
-  from {
-    opacity: 0;
-    transform: translateY(5px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 
-/* ---- in-progress pulse -------------------------------------------------------
- * A pending badge is a promise that something is happening elsewhere. The dot
- * breathes while the promise is outstanding — the one place in this file where
- * motion loops, because the state it describes is itself ongoing. Terminal
- * tones (approved, rejected, verified) never animate: stillness is information. */
+/* ==========================================================================
+   4. PENDING STATE
+   ==========================================================================
+   One infinite loop in the whole product, and it is here. A PENDING or
+   IN_DEBATE badge is a promise that work is happening somewhere else, so its
+   dot breathes while that promise is outstanding and stops the moment the
+   state becomes terminal.
+
+   This is the strongest argument for the rule: the animation's *duration is
+   infinite* precisely because the state it describes is infinite. Terminal
+   tones never move — stillness is the information that the matter is settled,
+   and a settled record that pulses would say the opposite. */
 
 .badge.pending::before,
-.badge.contradicted::before {
-  animation: pulse-dot 1.6s ease-in-out infinite;
+.badge.proposed::before,
+.badge.open::before,
+.badge.contradicted::before,
+.badge.in_debate::before {
+  animation: breathe 1.8s var(--ease-standard) infinite;
 }
-@keyframes pulse-dot {
+
+@keyframes breathe {
   0%,
   100% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
-    opacity: 0.45;
-    transform: scale(0.8);
+    opacity: 0.35;
   }
 }
 
-/* ---- alerts and empty states --------------------------------------------------
- * An error banner slides along the same downward path as page content, so it
- * reads as arriving from the flow rather than flashing over it. There is
- * deliberately no progress-bar choreography in this file: no producer
- * component exists for it, and a dead hook would only wait to hijack a future
- * class name (besides animating `width`, which is paint rather than
- * compositor work). */
+/* ==========================================================================
+   5. OVERLAYS — MODAL AND DRAWER
+   ==========================================================================
+   Spatial consistency (apple-design §7): a surface enters from the edge it
+   belongs to and leaves by the same edge. The modal scales up from slightly
+   below centre with a matching origin; the drawer enters from the right on
+   desktop and from the bottom on mobile, mirroring on exit. In-from-right /
+   out-the-bottom would feel like two unrelated surfaces.
 
-.alert {
-  animation: card-in var(--dur-fast) var(--ease-out) both;
-}
-.empty {
-  animation: page-in var(--dur-enter) var(--ease-out) both;
+   The scrim fades rather than sliding. A dimming layer is a change in
+   brightness, not a position, and animating brightness is both cheaper and
+   more honest about what happened. */
+
+.modal-backdrop,
+.drawer-backdrop {
+  animation: scrim-in var(--dur-fast) var(--ease-standard) both;
 }
 
-/* ---- focus ----------------------------------------------------------------------
- * Keyboard reviewers navigate the whole queue without a pointer. One visible
- * ring, not two: this rule replaces the `box-shadow` ring from app.css with a
- * plain outline, because both would otherwise render stacked on every focused
- * control. */
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  /* Origin low-centre so the dialog appears to come up off the surface it
+     sits on rather than materialising in place. */
+  transform-origin: 50% 75%;
+  animation: modal-in var(--dur-enter) var(--spring-standard) both;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--travel-loose)) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A confirming modal earns a brief acknowledgement: the press that opened it
+   has visibly produced this dialog. Two steps, no bounce. */
+.modal.acknowledge {
+  animation: modal-ack var(--dur-fast) var(--spring-snappy) both;
+}
+
+@keyframes modal-ack {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.drawer {
+  animation: drawer-in var(--dur-enter) var(--spring-standard) both;
+}
+
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--travel-loose));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   6. TOASTS
+   ==========================================================================
+   Enter from the edge they will be dismissed to, so dismissal is a reversal
+   the user already understands. Stacked toasts are offset by index rather
+   than animated individually, so a burst of notifications reads as one object
+   arriving instead of several competing. */
+
+.toast {
+  animation: toast-in var(--dur-enter) var(--spring-snappy) both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--travel-loose)) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.toast.dismissing {
+  animation: toast-out var(--dur-fast) var(--ease-exit) both;
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--travel-default) * -1)) scale(0.98);
+  }
+}
+
+/* ==========================================================================
+   7. DISCLOSURES AND PANEL EXPANSION
+   ==========================================================================
+   `details` cannot be height-animated without measuring it in JS, so the
+   chevron rotates and the content fades instead of growing. This is the
+   deliberate tradeoff for a native element that stays keyboard-accessible and
+   works without JavaScript. */
+
+.disclosure > summary::before {
+  transition: transform var(--dur-fast) var(--spring-snappy);
+}
+
+.disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+/* ==========================================================================
+   8. TAB INDICATOR
+   ==========================================================================
+   A shared indicator that slides between tabs rather than each tab painting
+   itself. Motion here carries information — "these are peers, and this one is
+   which is active" — so it is worth the one moving element per tab bar. */
+
+.tab-list {
+  position: relative;
+}
+
+.tab-indicator {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition:
+    transform var(--dur-enter) var(--spring-standard),
+    width var(--dur-enter) var(--spring-standard);
+  will-change: transform, width;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   9. LIST MUTATION
+   ==========================================================================
+   When an approval is committed or a corpus is created, the row that caused it
+   leaves and the list closes the gap. Fading and scaling to nothing is the
+   only honest way to show removal: sliding requires knowing the destination,
+   and after a mutation the reviewer is reading the list, not watching it. */
+
+.row-leaving {
+  animation: row-leave var(--dur-enter) var(--ease-exit) both;
+  pointer-events: none;
+}
+
+@keyframes row-leave {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.row-entering {
+  animation: row-marked var(--dur-enter) var(--ease-enter) both;
+}
+
+/* A freshly inserted row is briefly tinted so the reviewer's eye is drawn to
+   what their action produced. This is a real highlight of real state, not a
+   decorative flourish — it decays to normal in one cycle. */
+@keyframes row-marked {
+  0% {
+    opacity: 0;
+    background-color: var(--accent-soft);
+  }
+  18% {
+    opacity: 1;
+    background-color: var(--accent-soft);
+  }
+  100% {
+    opacity: 1;
+    background-color: transparent;
+  }
+}
+
+/* ==========================================================================
+   10. LOADING
+   ==========================================================================
+   Skeletons shimmer because the content is genuinely unknown in shape and
+   something is arriving. The shimmer is a background-position animation on a
+   gradient — no layout, no paint of the element's own box. */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: var(--radius-xs);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* The spinner is reserved for duration that is genuinely unknown, and it is the
+   only rotational animation in the product. It is small and inline so it
+   annotates a control's state rather than occupying the page. */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+  vertical-align: -2px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Real determinate progress: the bar's width is set from an actual count by
+   the component. Animating width here is correct and cheap because it changes
+   a handful of times, not every frame. */
+.progress {
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-enter) var(--spring-standard);
+}
+
+/* ==========================================================================
+   11. GRAPH
+   ==========================================================================
+   Cytoscape owns the node and edge positions; these classes style the canvas
+   chrome around it and let the graph's own transitions run natively. The one
+   rule that matters here is that dimming is a class on the container, not a
+   re-layout — a graph that re-lays-out on hover is unreadable. */
+
+.graph-surface {
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.graph-surface.is-dimmed {
+  opacity: 0.45;
+}
+
+.graph-stage {
+  animation: graph-in var(--dur-enter) var(--ease-standard) both;
+}
+
+@keyframes graph-in {
+  from {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   12. LIVE ARGUMENTS (COUNCIL)
+   ==========================================================================
+   A new SSE argument arrives, so a new element is born. It fades and rises a
+   short distance into place. Crucially, it does NOT scroll the page, and the
+   container does not jump — the reviewer's reading position is theirs, and
+   taking it away would make a live debate impossible to follow (see §28 of the
+   brief). */
+
+.argument-enter {
+  animation: argument-in var(--dur-enter) var(--ease-enter) both;
+}
+
+@keyframes argument-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--travel-default));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   13. TRACE / X-RAY
+   ==========================================================================
+   Opening X-Ray expands from the step that was selected, so the user keeps
+   spatial context: this is what I just clicked. The origin is set on the
+   element by the component to the trigger's bounding box. */
+
+.xray-enter {
+  animation: xray-in var(--dur-enter) var(--spring-soft) both;
+}
+
+@keyframes xray-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The replay playhead. A single absolutely-positioned element that moves
+   between step offsets; transform only, so scrubbing a long trace never
+   triggers layout. */
+.replay-playhead {
+  transition: left var(--dur-fast) var(--spring-snappy);
+  will-change: left;
+}
+
+.replay-step.is-current {
+  animation: replay-focus var(--dur-fast) var(--spring-snappy) both;
+}
+
+@keyframes replay-focus {
+  from {
+    background-color: var(--accent-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+/* ==========================================================================
+   14. NAVIGATION
+   ==========================================================================
+   The active item is marked by a left rule drawn with an inset shadow, so it
+   costs no layout and does not shift the label when it appears. Colour and the
+   rule transition together, which keeps the two channels from arriving at
+   different times and reading as two separate events. */
+
+.nav-link {
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-instant) var(--ease-standard);
+}
+
+.nav-link .nav-icon {
+  transition: transform var(--dur-fast) var(--spring-snappy);
+}
+
+/* A 2px settle, not a swing. Enough to feel that the icon responded. */
+.nav-link:hover .nav-icon {
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   15. FOCUS
+   ==========================================================================
+   One visible ring. This replaces the box-shadow ring from tokens.css with a
+   plain outline, because both would otherwise render stacked on every focused
+   control and produce a doubled halo. */
 
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
+summary:focus-visible,
 [tabindex]:focus-visible {
   box-shadow: none;
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
 
-/* ---- links ------------------------------------------------------------------------- */
+/* ==========================================================================
+   16. UTILITY MOTION
+   ========================================================================== */
 
 a {
-  transition: color var(--dur-fast) ease-out;
+  transition: color var(--dur-fast) var(--ease-standard);
 }
 
-/* ---- reduced motion, contrast ------------------------------------------------------------
- * Two independent signals, per the skill: reduce means gentler equivalents,
- * not dead UI. Slides and staggers are revoked outright (a 1ms animation with
- * `both` fill still flashes the `from` frame and keeps the machinery alive),
- * including the pre-existing infinite spinner and skeleton shimmer. Opacity
- * and colour changes that aid comprehension are kept.
- *
- * Contrast: the badge trust channel is border *style* (dashed pending, double
- * contradicted, dotted missing) precisely so trust is never colour alone — so
- * this block does not touch badges at all. */
+.alert {
+  animation: route-enter var(--dur-fast) var(--ease-enter) both;
+}
+
+.empty {
+  animation: route-enter var(--dur-enter) var(--ease-enter) both;
+}
+
+/* ==========================================================================
+   17. REDUCED MOTION — MEANING WITHOUT MOVEMENT
+   ==========================================================================
+   Three independent signals, per the skill.
+
+   `reduce` replaces movement with a cross-fade. It does NOT delete feedback:
+   the badge that was breathing still changes colour and still carries its
+   border pattern and label, the route that was sliding still fades, the row
+   that was marked still gets a static tint that decays via the animation's
+   own end state. What is removed is displacement and looping.
+
+   Note the `animation: none` rather than the 0.01ms override in tokens.css:
+   a 0.01ms animation with `both` fill still renders the `from` frame for a
+   frame and then snaps, which is a visible flash — worse than no animation.
+   Revoking outright is the honest version. */
 
 @media (prefers-reduced-motion: reduce) {
+  .route-view,
   .page-header,
   .card,
   table.data tbody tr,
+  .stack > .card,
+  .grid > .card,
   .alert,
   .empty,
-  .spinner,
-  .skeleton {
+  .argument-enter,
+  .xray-enter,
+  .toast,
+  .graph-stage,
+  .row-entering,
+  .replay-step.is-current {
     animation: none;
-    transition: none;
   }
+
+  .modal,
+  .drawer,
+  .modal-backdrop,
+  .drawer-backdrop {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* The pending dot stops moving. It keeps its colour and its dashed border,
+     so "this is still open" is still legible without the loop. */
   .badge.pending::before,
-  .badge.contradicted::before {
+  .badge.proposed::before,
+  .badge.open::before,
+  .badge.contradicted::before,
+  .badge.in_debate::before {
+    animation: none;
+    opacity: 0.55;
+  }
+
+  .skeleton,
+  .spinner {
     animation: none;
   }
+
+  /* A static skeleton needs to still read as "content is coming", so it gets a
+     flat fill instead of a shimmer. */
+  .skeleton {
+    background: var(--surface-2);
+  }
+
   .btn,
   .nav-link,
-  a {
+  .nav-link .nav-icon,
+  a,
+  .disclosure > summary::before,
+  .tab-indicator,
+  .replay-playhead,
+  .progress-fill,
+  .graph-surface {
     transition: none;
   }
+
+  /* Press feedback is retained as a static tint rather than removed: a
+     keyboard or switch user still gets confirmation that the control took the
+     input, which is the one thing reduced motion must never take away. */
+  .btn:active:not(:disabled) {
+    transform: none;
+    filter: brightness(0.94);
+  }
+
+  .nav-link:active {
+    transform: none;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
 }
+
+/* ==========================================================================
+   18. HIGH CONTRAST
+   ==========================================================================
+   Separators move from the theme's neutral grey to `currentColor` so they are
+   guaranteed to contrast against whatever they sit on. The badge trust channel
+   is untouched: border *style* is the semantic, and that must not change. */
+
 @media (prefers-contrast: more) {
   .card,
   table.data td,
-  table.data th {
+  table.data th,
+  .alert,
+  .evidence,
+  input,
+  select,
+  textarea {
     border-color: currentColor;
+  }
+}
+
+/* ==========================================================================
+   19. REDUCED TRANSPARENCY
+   ==========================================================================
+   Translucent chrome becomes solid. Kept here rather than at each use site so
+   there is one definition of "opaque enough to be legible". */
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --surface-nav: var(--surface-0);
+    --surface-glass: var(--surface-0);
+    --surface-scrim: rgb(18 21 26 / 0.75);
   }
 }

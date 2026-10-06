@@ -5,13 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <!--
-      CSP is also set by nginx in production. This meta policy covers the dev
-      server, where nginx is not in the path. 'unsafe-inline' for styles only:
-      React injects a style tag at runtime. Scripts are NOT permitted inline.
+      CSP has two delivery mechanisms with different capabilities, and this app
+      needs both because its two deployments do not have the same options.
+
+      * A <meta> policy — used here, and the only option on GitHub Pages, which
+        serves static files and gives no control over response headers. Every
+        fetch directive works here EXCEPT `frame-ancestors` and `report-uri`,
+        which browsers ignore in a meta element. Including one produced a console
+        error on every load and, worse, implied clickjacking protection that was
+        not actually in force.
+      * A real header — sent by nginx in the container deployment
+        (docker/nginx/prism-frontend.conf), where `frame-ancestors 'none'` does
+        take effect, alongside `X-Frame-Options: DENY`.
+
+      So `frame-ancestors` is deliberately absent below and present in the nginx
+      header. It is not forgotten; it is in the place where it works.
+
+      `connect-src 'self'` needs no host entry. The Vite dev server proxies /api
+      to the backend with `changeOrigin`, so the browser only ever sees one
+      origin in development exactly as it does in production. Listing
+      localhost:8080 here used to leak the dev topology into the production
+      bundle — the very coupling the nginx architecture exists to avoid.
+
+      'unsafe-inline' is permitted for styles only, because React injects a
+      style element at runtime. Scripts are NOT permitted inline.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:8080; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
     />
     <title>PRISM — auditable AI analysis</title>
   </head>

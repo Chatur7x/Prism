@@ -39,34 +39,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // request then fails, which reads as a broken backend rather than an expired
   // session.
   useEffect(() => {
-    let cancelled = false
+    const cancelled = { current: false }
     async function verify() {
       if (!getToken()) {
-        if (!cancelled) setReady(true)
+        setReady(true)
         return
       }
       try {
         const fresh = await authApi.me()
-        if (cancelled) return
+        if (cancelled.current) return
         setUser(fresh)
         // Re-store so a role change made since login is reflected.
         // Preserve the stored expiry: /me carries no fresh TTL.
         const token = getToken()
         if (token) setSession(token, fresh, getSessionExpiry() ?? undefined)
       } catch (error) {
-        if (cancelled) return
         // 401 already cleared the session. A network failure is different: the
         // token may be fine, so keep the cached user rather than signing out.
         if (error instanceof ApiError && error.status === 0) {
           setUser(getStoredUser())
         }
       } finally {
-        if (!cancelled) setReady(true)
+        setReady(true)
       }
     }
     void verify()
     return () => {
-      cancelled = true
+      cancelled.current = true
     }
   }, [])
 

@@ -186,6 +186,24 @@ export function GraphCanvas({ nodes, edges, confidence, selectedId, onSelect }: 
     })
     cyRef.current = cy
 
+    /*
+     * Size the renderer explicitly, now.
+     *
+     * Cytoscape does not size its own canvas stack until resize() runs, and
+     * until then every layer sits at the HTML default of 300x150 no matter how
+     * large the container is. Its injected stylesheet only sets `position` on
+     * the wrapper and leaves the box entirely to script timing, and the
+     * ResizeObserver below is not a reliable place to depend on for the *first*
+     * size — it exists for later viewport changes, not for initialisation.
+     *
+     * Relying on it alone leaves the graph painting into a 300x150 patch inside
+     * a much larger area: the layout still runs and `fit: true` still resolves,
+     * but against the wrong viewport, and because the wrapper clips its
+     * overflow the result is a blank-looking canvas rather than an obviously
+     * wrong one. Resizing here makes the first paint correct by construction.
+     */
+    cy.resize()
+
     cy.on('tap', 'node', (event: cytoscape.EventObject) => {
       const numericId = event.target.data('numericId') as unknown
       if (typeof numericId === 'number') onSelectRef.current(numericId)
@@ -241,6 +259,23 @@ export function GraphCanvas({ nodes, edges, confidence, selectedId, onSelect }: 
     cy.add([...nodeElements, ...edgeElements])
     runCoseLayout(cy)
     applySelection(cy, selectedIdRef.current)
+
+    /*
+     * Re-size after the layout settles.
+     *
+     * `fit: true` recomputes the zoom against whatever viewport the renderer
+     * currently has, so the resize has to happen *after* the layout resolves or
+     * the fit is computed against a stale box. Deferred by one frame because the
+     * layout is asynchronous, and a synchronous resize here would run before it.
+     */
+    requestAnimationFrame(() => {
+      const instance = cyRef.current
+      if (instance === null) return
+      instance.resize()
+      // The instance can be torn down between the frame being requested and it
+      // running — a fast route change to a different corpus re-runs this effect.
+      if (!instance.destroyed()) instance.fit(undefined, 30)
+    })
   }, [nodes, edges, confidence])
 
   // Restyle only when the selection changes (no relayout).

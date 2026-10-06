@@ -1,0 +1,655 @@
+/* =============================================================================
+ * Primitives layer: toast, tooltip, skeleton shapes, tabs, progress, spinner.
+ *
+ * These are the components that several pages genuinely share, which is the
+ * only reason each one exists as a primitive rather than a page-local copy.
+ * A component earns this file when three or more call sites would otherwise
+ * each grow their own version — not because it looks like something a design
+ * system ought to have.
+ *
+ * All movement lives in motion.css.
+ * ============================================================================= */
+
+/* ==========================================================================
+   SIDEBAR WIDTH
+   ==========================================================================
+   Declared here rather than in components.css because it is the one layout
+   constant that both the shell grid and the responsive rules have to agree
+   on. When app.css and components.css both declared `.app-shell` the two
+   disagreed about this number and the later file silently won.
+   ========================================================================== */
+
+:root {
+  --sidebar-w: 236px;
+}
+
+@media (max-width: 1280px) {
+  :root {
+    --sidebar-w: 216px;
+  }
+}
+
+/* ==========================================================================
+   TOASTS
+   ==========================================================================
+   Used sparingly and only for events the page itself does not already show:
+   a mutation that succeeded somewhere off-screen, a long-running job that
+   finished, a destructive action that was undone. Anything important enough to
+   change what a reviewer should do stays in the page — a toast is a
+   notification, not a record.
+ *
+ * Bottom-right on desktop, top on mobile: the bottom corner is where a pointer
+   is, and the top is where a thumb is. Enter and dismiss travel the same axis
+   so the reversal is predictable (motion.css §6).
+   ========================================================================== */
+
+.toast-region {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* The region must not swallow clicks meant for the page beneath it. */
+  pointer-events: none;
+  max-width: min(380px, calc(100vw - var(--space-8)));
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-2);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  box-shadow: var(--shadow-overlay);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--ink-0);
+}
+
+.toast .toast-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast .toast-title {
+  font-weight: var(--weight-semibold);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.toast .toast-detail {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-overline);
+  display: block;
+  margin-top: 2px;
+}
+
+.toast.ok {
+  border-left-color: var(--success);
+}
+.toast.error {
+  border-left-color: var(--danger);
+}
+.toast.warn {
+  border-left-color: var(--warning);
+}
+.toast.info {
+  border-left-color: var(--info);
+}
+
+.toast-close {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  font-size: var(--text-caption);
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--radius-xs);
+}
+
+.toast-close:hover {
+  color: var(--ink-0);
+  background: var(--surface-2);
+}
+
+@media (max-width: 640px) {
+  .toast-region {
+    top: var(--space-4);
+    left: var(--space-4);
+    right: var(--space-4);
+    bottom: auto;
+    max-width: none;
+  }
+}
+
+/* ==========================================================================
+   TOOLTIP
+   ==========================================================================
+   Only for things that are genuinely not self-describing: what a graph metric
+   means, what an unfamiliar icon does, what a status code implies. Never on
+   text the user can read — a tooltip that restates its trigger is noise that
+   costs a hover.
+
+   Opened by CSS :hover/:focus-visible rather than by JavaScript, so it cannot
+   get out of sync with its trigger, and so it is inert for anyone who cannot
+   hover. The content is also always reachable in the DOM, so this is a
+   convenience and never the only place the information exists.
+   ========================================================================== */
+
+.tooltip {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip > .tooltip-content {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(var(--travel-tight));
+  z-index: var(--z-sticky);
+  width: max-content;
+  max-width: 260px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-2);
+  background: var(--ink-0);
+  color: var(--surface-0);
+  font-size: var(--text-overline);
+  line-height: var(--leading-caption);
+  font-weight: var(--weight-medium);
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  box-shadow: var(--shadow-md);
+  transition:
+    opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard),
+    visibility 0s linear var(--dur-fast);
+}
+
+/* The arrow is a rotated square rather than a border triangle: it scales,
+   it inherits the border, and it cannot produce a hairline seam. */
+.tooltip > .tooltip-content::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--ink-0);
+}
+
+.tooltip:hover > .tooltip-content,
+.tooltip:focus-visible > .tooltip-content,
+.tooltip:focus-within > .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip > .tooltip-content {
+    transition: none;
+    transform: translateX(-50%);
+  }
+}
+
+/* ==========================================================================
+   SKELETONS
+   ==========================================================================
+   Shapes that match the content they stand in for. A generic grey bar where a
+   table will be causes the layout to jump when the data lands, which is worse
+   than showing nothing: the reviewer's eye has to re-find what they were
+   reading. Each shape here mirrors a real element's metrics.
+   ========================================================================== */
+
+.skeleton {
+  display: block;
+  border-radius: var(--radius-xs);
+  height: 12px;
+}
+
+.skeleton.text {
+  width: 100%;
+  height: 1em;
+}
+
+.skeleton.title {
+  width: 40%;
+  height: 1.5em;
+  margin-bottom: var(--space-2);
+}
+
+.skeleton.line {
+  width: 100%;
+  height: 10px;
+  margin-bottom: var(--space-2);
+}
+
+.skeleton.line.short {
+  width: 60%;
+}
+
+.skeleton.circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.skeleton.block {
+  width: 100%;
+  height: 96px;
+  border-radius: var(--radius-sm);
+}
+
+/* A skeleton row table: header band plus body lines, matching the real row
+   height so nothing moves when the rows arrive. */
+.skeleton-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+/* A group of skeletons is one loading state, so it is announced once rather
+   than per bar. */
+.skeleton-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ==========================================================================
+   PROGRESS
+   ==========================================================================
+   Determinate only. The component sets the width from a real count; there is
+   deliberately no indeterminate variant here, because an indeterminate bar
+   over a task with a known total is a lie about work in progress.
+   ========================================================================== */
+
+.progress {
+  height: 3px;
+  width: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-enter) var(--spring-standard);
+}
+
+.progress.done .progress-fill {
+  background: var(--trust-approved);
+}
+
+.progress.failed .progress-fill {
+  background: var(--trust-rejected);
+}
+
+/* A labelled variant for anything the reviewer must not misread as complete. */
+.progress-labelled {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-overline);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   TABS
+   ==========================================================================
+   A sliding indicator rather than each tab painting itself. The one moving
+   element per tab bar is worth it because it carries real information: these
+   are peers, and this is which one is active.
+   ========================================================================== */
+
+.tab-list {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--line-1);
+  position: relative;
+}
+
+.tab {
+  position: relative;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-secondary);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tab:hover {
+  color: var(--ink-0);
+  background: var(--surface-inset);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
+/* The count sits on the tab so the reader knows the size of what they are
+   about to see before switching. */
+.tab .tab-count {
+  font-size: var(--text-overline);
+  font-variant-numeric: tabular-nums;
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.tab[aria-selected='true'] .tab-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ==========================================================================
+   SEGMENTED CONTROL
+   ==========================================================================
+   For filters over a single list, where the options are peers and the choice
+   is not destructive. Pairs with a count so the reviewer can see the shape of
+   the data before filtering it.
+   ========================================================================== */
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  flex-wrap: wrap;
+}
+
+.segmented button {
+  padding: 3px var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-overline);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.segmented button:hover {
+  background: var(--surface-2);
+  color: var(--ink-0);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--surface-0);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.segmented button .count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* ==========================================================================
+   EMPTY STATE
+   ==========================================================================
+   Every data surface has one. It says what is empty and what would fill it,
+   because an empty screen with no next action reads as a broken screen. The
+   action is a real control when one exists and plain text when it does not —
+   a disabled button is worse than a sentence.
+   ========================================================================== */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-9) var(--space-6);
+  text-align: center;
+}
+
+.empty-state .empty-glyph {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-1);
+  background: var(--surface-inset);
+  color: var(--ink-3);
+  font-size: var(--text-section);
+  line-height: 1;
+}
+
+.empty-state .empty-title {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-1);
+  line-height: var(--leading-card-title);
+}
+
+.empty-state .empty-hint {
+  font-size: var(--text-secondary);
+  color: var(--ink-2);
+  max-width: 46ch;
+  line-height: var(--leading-secondary);
+  text-wrap: balance;
+}
+
+/* An empty state's prose is often a sentence with a link in it, so the measure
+   cap is applied to the text and the link is allowed to sit inline. */
+.empty-state .empty-hint p {
+  margin: 0;
+}
+
+.empty-state .empty-hint a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ==========================================================================
+   ERROR STATE
+   ==========================================================================
+   Shared across every page, so a failure is recognisable as a failure rather
+   than as a page that happens to be showing prose. Carries the trace id when
+   the backend supplied one, because that is what makes a report reproducible.
+   ========================================================================== */
+
+.error-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--danger);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--ink-0);
+}
+
+.error-state .error-title {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-semibold);
+  color: var(--danger);
+  line-height: var(--leading-card-title);
+}
+
+.error-state .error-detail {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--ink-1);
+}
+
+.error-state .error-hint {
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+}
+
+.error-state .error-trace {
+  font-family: var(--font-mono);
+  font-size: var(--text-overline);
+  color: var(--ink-2);
+}
+
+.error-state ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-caption);
+}
+
+/* ==========================================================================
+   SOURCE ATTRIBUTION
+   ==========================================================================
+   The one component that makes provenance scannable. Wherever text appears in
+   PRISM, this says who produced it: the engine extracted it, the model
+   proposed it, or a person decided it. Rendering this next to every passage is
+   the cheapest way to keep the architectural invariant visible all day.
+   ========================================================================== */
+
+.attribution {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-overline);
+  color: var(--ink-2);
+}
+
+.attribution .attribution-role {
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.attribution.actor-engine .attribution-role {
+  color: var(--actor-engine);
+}
+.attribution.actor-llm .attribution-role {
+  color: var(--actor-llm);
+}
+.attribution.actor-human .attribution-role {
+  color: var(--actor-human);
+}
+
+/* ==========================================================================
+   WEIGHT SCALE — the chair's 1-5 control
+   ==========================================================================
+   Tactile by construction: the buttons are square and the selected one is
+   filled, so the choice is visible at a glance and readable by a screen
+   reader as a radio group. Deliberately not a slider or a star rating — this
+   is a recorded judgement about the weight of evidence, and it should look
+   like a decision rather than a preference.
+   ========================================================================== */
+
+.weight-scale {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.weight-scale button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--ink-1);
+  font: inherit;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.weight-scale button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.weight-scale button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.weight-scale button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.weight-scale-label {
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+  margin-left: var(--space-3);
+}
+
+/* ==========================================================================
+   PIPELINE CONNECTORS — the document stage strip
+   ==========================================================================
+   A rule between stages so the strip reads as a progression rather than as
+   six unrelated boxes. The rule is drawn with a pseudo-element rather than a
+   real element, so it cannot intercept a click on the stage beneath it.
+   ========================================================================== */
+
+.pipe-stage {
+  position: relative;
+}
+
+.pipe-stage + .pipe-stage::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-2) * -1);
+  top: 50%;
+  width: var(--space-2);
+  height: 1px;
+  background: var(--line-2);
+}
+
+@media (max-width: 640px) {
+  .pipe-stage + .pipe-stage::before {
+    display: none;
+  }
+}

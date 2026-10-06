@@ -124,7 +124,7 @@ function renderMainContent(
   )
 
   return (
-    <div className="grid" style={{ gridTemplateColumns: '280px 1fr', gap: 'var(--space-4)' }}>
+    <div className="grid" style={{ gridTemplateColumns: '280px minmax(0, 1fr)', gap: 'var(--space-4)' }}>
       <Card title={`Councils (${debates.data?.totalElements ?? rows.length})`} flush>
         <div className="list-select">
           {rows.map((debate: Debate) => (
@@ -132,23 +132,29 @@ function renderMainContent(
               key={debate.id}
               className={debate.id === activeId ? 'list-item active' : 'list-item'}
             >
+              {/* The row itself is the button. An earlier revision wrapped the
+                  button in a padded <div>, which left the padding outside the
+                  button's hit area — a real dead zone in a list the reviewer
+                  clicks repeatedly. One control, full row. */}
               <button
+                type="button"
                 className="list-item-main"
+                aria-current={debate.id === activeId ? 'true' : undefined}
                 onClick={() => setSelectedDebateId(debate.id)}
-                style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}
               >
-                <div className="tiny muted">#{debate.id}</div>
-                <div className="small">{debate.topic}</div>
-                <div className="row" style={{ marginTop: 4 }}>
+                <span className="list-item-id tiny muted">#{debate.id}</span>
+                <span className="list-item-title small">{debate.topic}</span>
+                <span className="list-item-meta">
                   <StatusBadge value={debate.state} />
                   <span className="tiny muted">
                     round {debate.currentRound}/{debate.maxRounds}
                   </span>
-                </div>
+                </span>
               </button>
               {debate.state === 'AWAITING_CHAIR' && (
-                <div style={{ marginTop: 8 }}>
+                <div className="list-item-actions">
                   <button
+                    type="button"
                     className="btn sm primary"
                     onClick={() => {
                       setSelectedDebateId(debate.id)

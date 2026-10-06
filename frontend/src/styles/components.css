@@ -1,164 +1,261 @@
-/* PRISM component layer: layout primitives, tables, badges, cards, forms. */
+/* =============================================================================
+ * PRISM component layer: layout, navigation, tables, badges, cards, forms.
+ *
+ * Reads tokens.css and nothing else. Every size, colour, radius, and duration
+ * here is a token reference — if you find a raw value in this file it is a bug
+ * and it will drift the first time the scale changes.
+ *
+ * The two exceptions are documented where they appear.
+ * ============================================================================= */
+
+/* ==========================================================================
+   SHELL AND NAVIGATION
+   ========================================================================== */
 
 .app-shell {
+  /* `minmax(0, 1fr)` and not `1fr`. A bare `1fr` is `minmax(auto, 1fr)`, and
+     that `auto` floor is the content's *min-content* width — so a data table
+     with nowrap cells inflates the column, the column inflates the page, and
+     `.table-wrap { overflow-x: auto }` never engages because its parent grew
+     to fit instead of constraining it. The symptom is a whole page scrolling
+     sideways whenever a table is a few columns too wide.
+
+     `minmax(0, 1fr)` lets the column shrink to the viewport, at which point the
+     table wrapper does the scrolling it was written to do. */
   display: grid;
-  grid-template-columns: 232px 1fr;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   min-height: 100vh;
 }
 
 .sidebar {
-  background: var(--surface-0);
+  /* Translucent rather than opaque, so the record is visibly scrolling beneath
+     the chrome. Blur is applied by premium.css, which owns depth; this file
+     owns structure. */
+  background: var(--surface-nav);
   border-right: 1px solid var(--line-1);
-  padding: var(--space-4) var(--space-3);
+  padding: var(--space-5) var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
   position: sticky;
   top: 0;
   height: 100vh;
   overflow-y: auto;
+  z-index: var(--z-nav);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   padding: 0 var(--space-2);
 }
-.brand-mark {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  border-radius: var(--radius);
-  background: linear-gradient(135deg, #2f5fd0, #6a3bb5 55%, #1c7a4a);
-}
+
 .brand-text {
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  font-size: 15px;
+  font-size: var(--text-section);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.14em;
 }
+
 .brand-sub {
-  font-size: 10.5px;
+  font-size: var(--text-overline);
   color: var(--ink-2);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
+  font-weight: var(--weight-semibold);
 }
 
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  /* 2px, not a token: this is the gap between adjacent hits in a dense list
+     and must stay tighter than --gap-tight or the sidebar reads as loose. */
+  gap: 2px;
 }
+
+/*
+ * The active indicator: one element for the whole sidebar, positioned from
+ * measured geometry and moved by transform. It carries real information —
+ * where you are in the pipeline — so one moving element is right and a
+ * per-link fade would just be noise.
+ *
+ * Absolutely positioned against the sidebar, so it slides over the labels
+ * without a link ever reserving space for it.
+ */
+.nav-rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  pointer-events: none;
+  /* Only vertical movement matters here, so only the vertical axis is
+     transitioned; transitioning `all` would lag the initial placement. */
+  transition: transform var(--dur-enter) var(--spring-standard);
+  z-index: 1;
+}
+
 .nav-group-label {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
+  font-size: var(--text-overline);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-3);
-  padding: var(--space-2) var(--space-2) var(--space-1);
+  padding: var(--space-4) var(--space-2) var(--space-1);
+  /* First group sits directly under the brand with no orphan label gap. */
 }
+
+.nav-group:first-of-type .nav-group-label {
+  padding-top: var(--space-1);
+}
+
 .nav-link {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 7px var(--space-2);
-  border-radius: var(--radius);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
   color: var(--ink-1);
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: var(--text-secondary);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-secondary);
   text-decoration: none;
-  /* Press feedback on pointer-down, per motion guidance: instant response. */
-  transition: background-color 90ms ease-out, transform 90ms ease-out;
+  /* Above the rail, which is deliberately behind the labels. */
+  position: relative;
+  z-index: 2;
 }
+
 .nav-link:hover {
   background: var(--surface-2);
   color: var(--ink-0);
   text-decoration: none;
 }
-.nav-link:active {
-  transform: scale(0.985);
-}
+
 .nav-link.active {
   background: var(--accent-soft);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
+
+/* One fixed-width icon slot on every item, so labels align down the column
+   regardless of glyph width. Raw width, not a token: it is a layout constant
+   matching the icon font-size, not part of the spacing rhythm. */
 .nav-icon {
   width: 16px;
-  text-align: center;
   flex: 0 0 16px;
-  font-size: 13px;
+  text-align: center;
+  font-size: var(--text-secondary);
+  line-height: 1;
+  color: var(--accent);
 }
 
 .sidebar-footer {
   margin-top: auto;
   border-top: 1px solid var(--line-1);
-  padding-top: var(--space-3);
+  padding-top: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
+
 .who {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 var(--space-2);
-}
-.who-name {
-  font-weight: 600;
-  font-size: 13px;
-}
-.who-role {
-  font-size: 11px;
-  color: var(--ink-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
 }
 
+.who-name {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-caption);
+  color: var(--ink-0);
+  overflow-wrap: anywhere;
+}
+
+.who-role {
+  font-size: var(--text-overline);
+  color: var(--ink-2);
+  line-height: var(--leading-caption);
+}
+
+.who-session {
+  font-size: var(--text-overline);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   MAIN COLUMN
+   ========================================================================== */
+
 .main {
-  padding: var(--space-5) var(--space-6) var(--space-7);
-  max-width: 1500px;
+  padding: var(--pad-page) var(--pad-panel) var(--space-10);
+  /* Wide enough for a four-column stat row plus a data table without the table
+     wrapping, narrow enough that prose keeps a readable measure. */
+  max-width: 1560px;
   width: 100%;
+  /* Second half of the grid fix: `min-width: 0` lets this box shrink below its
+     content's min-content width, which is what actually lets an inner
+     `overflow-x` wrapper take effect. Without it the flex/grid item refuses to
+     be smaller than its widest descendant. */
+  min-width: 0;
 }
 
 .page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
+
 .page-header h1 {
-  margin-bottom: 2px;
-}
-.page-subtitle {
-  color: var(--ink-2);
-  font-size: 13px;
-  margin: 0;
-  max-width: 76ch;
+  margin-bottom: var(--space-1);
 }
 
-/* ---- cards ---- */
+.page-subtitle {
+  color: var(--ink-2);
+  font-size: var(--text-secondary);
+  line-height: var(--leading-secondary);
+  margin: 0;
+  max-width: 76ch;
+  text-wrap: balance;
+}
+
+/* ==========================================================================
+   CARDS
+   ========================================================================== */
+
 .card {
   background: var(--surface-0);
   border: 1px solid var(--line-1);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
 }
+
 .card-head {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--pad-card);
   border-bottom: 1px solid var(--line-1);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
+  min-height: 48px;
 }
+
 .card-head h2,
 .card-head h3 {
   margin: 0;
 }
+
 .card-body {
-  padding: var(--space-4);
+  padding: var(--pad-card);
 }
 .card-body.tight {
   padding: var(--space-3);
@@ -171,6 +268,7 @@
   display: grid;
   gap: var(--space-4);
 }
+
 .grid.cols-2 {
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 }
@@ -181,50 +279,88 @@
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
-/* ---- stat tiles ---- */
+/* ==========================================================================
+   STAT TILES
+   ==========================================================================
+   Hierarchy here matters more than decoration: the value is the subject, so it
+   is the only thing on the tile in the accent colour. The label and hint are
+   ink. An earlier version coloured every value in the accent, which flattened
+   exactly the distinction the tile exists to draw. */
+
 .stat {
   background: var(--surface-0);
   border: 1px solid var(--line-1);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
+  min-width: 0;
 }
+
 .stat-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  font-size: var(--text-overline);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-2);
+  line-height: var(--leading-overline);
 }
+
 .stat-value {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.15;
+  font-size: var(--text-stat);
+  font-weight: var(--weight-emphasis);
+  line-height: var(--leading-stat);
+  letter-spacing: var(--tracking-stat);
   font-variant-numeric: tabular-nums;
+  color: var(--ink-0);
+  /* A long value must not push the tile wider than its column. */
+  overflow-wrap: anywhere;
 }
+
 .stat-hint {
-  font-size: 11.5px;
+  font-size: var(--text-overline);
   color: var(--ink-2);
+  line-height: var(--leading-caption);
+}
+
+/* Only the tile that is genuinely the headline takes the accent. */
+.stat.accent {
+  border-color: var(--accent-line);
 }
 .stat.accent .stat-value {
   color: var(--accent);
 }
+.stat.accent .stat-label {
+  color: var(--accent);
+}
 
-/* ---- tables ---- */
+/* ==========================================================================
+   TABLES
+   ==========================================================================
+   Dense and readable: 8px vertical padding is the floor at which a row still
+   separates visually, and every numeric column is tabular so digits line up
+   down the column rather than jittering with each value. */
+
 .table-wrap {
   overflow-x: auto;
+  /* Horizontal scroll belongs here and nowhere else — see the brief on nested
+     scroll containers. */
+  -webkit-overflow-scrolling: touch;
 }
+
 table.data {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-data);
+  line-height: var(--leading-data);
+  letter-spacing: var(--tracking-data);
 }
+
 table.data th {
   text-align: left;
-  font-size: 10.5px;
-  font-weight: 600;
+  font-size: var(--text-overline);
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-2);
@@ -234,213 +370,362 @@ table.data th {
   background: var(--surface-1);
   position: sticky;
   top: 0;
+  z-index: 1;
 }
+
 table.data td {
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line-1);
   vertical-align: top;
 }
+
 table.data tbody tr:last-child td {
   border-bottom: none;
 }
+
 table.data tbody tr:hover {
   background: var(--surface-inset);
 }
-table.data td.num {
+
+table.data td.num,
+table.data th.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- badges ----
-   Each badge pairs colour WITH a text label and a distinct border weight, so
-   trust level is never communicated by colour alone. */
+table.data .cell-strong {
+  font-weight: var(--weight-semibold);
+  color: var(--ink-0);
+}
+
+/* ==========================================================================
+   BADGES
+   ==========================================================================
+   Colour, a label, and a border treatment — always all three. The border
+   style is the load-bearing channel: it is the only one that survives
+   greyscale, colour-vision deficiency, and a monochrome print, and in an audit
+   tool that is the channel that decides whether a reviewer read the record
+   correctly.
+
+   The dot is 5px rather than 6px so it sits optically centred in a 12px line
+   without making the badge read as a status light. */
+
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
+  gap: var(--space-1);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-overline);
+  font-weight: var(--weight-semibold);
   letter-spacing: 0.02em;
+  line-height: var(--leading-overline);
   border: 1px solid transparent;
   white-space: nowrap;
+  vertical-align: middle;
 }
+
 .badge::before {
   content: '';
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
   border-radius: 50%;
   background: currentColor;
-  flex: 0 0 6px;
 }
-.badge.solid::before {
+
+/* A badge whose meaning is in its text alone (a filter chip, a count) does
+   not need a dot, and one without it is less noisy. */
+.badge.solid::before,
+.badge.no-dot::before {
   display: none;
 }
+
+/* -- approved: settled, human-accepted ------------------------------- */
 .badge.approved,
 .badge.supported,
 .badge.resolved,
-.badge.ready {
+.badge.ready,
+.badge.succeeded,
+.badge.exact {
   color: var(--trust-approved);
   background: var(--trust-approved-bg);
   border-color: currentColor;
+  border-style: var(--trust-approved-border);
 }
+
+/* -- pending: open, not yet decided. Dashed = still open. ------------- */
 .badge.pending,
 .badge.proposed,
 .badge.open,
-.badge.created {
+.badge.created,
+.badge.awaiting_approval,
+.badge.uploaded,
+.badge.chunking,
+.badge.chunked,
+.badge.extracting,
+.badge.round_active,
+.badge.synthesizing {
   color: var(--trust-pending);
   background: var(--trust-pending-bg);
   border-color: currentColor;
-  border-style: dashed;
+  border-style: var(--trust-pending-border);
 }
+
+/* -- rejected: settled refusal. Same border weight as approved, because a
+      rejection is as final as an approval and must not look weaker. ------- */
 .badge.rejected,
 .badge.failed,
 .badge.dismissed,
-.badge.abandoned {
+.badge.abandoned,
+.badge.aborted {
   color: var(--trust-rejected);
   background: var(--trust-rejected-bg);
   border-color: currentColor;
+  border-style: var(--trust-rejected-border);
 }
+
+/* -- verified: a machine verdict reached and recorded. Double border = a
+      stronger claim than plain approval, which is what it is. ------------- */
 .badge.verified,
-.badge.completed {
+.badge.completed,
+.badge.adjudicated {
   color: var(--trust-verified);
   background: var(--trust-verified-bg);
   border-color: currentColor;
+  border-style: var(--trust-verified-border);
   border-width: 2px;
 }
+
+/* -- contradicted: two records disagree. The one state that earns extra
+      visual weight, because it is the one a reviewer must not miss. -------- */
 .badge.contradicted,
-.badge.in_debate {
+.badge.in_debate,
+.badge.contested {
   color: var(--trust-contradicted);
   background: var(--trust-contradicted-bg);
   border-color: currentColor;
+  border-style: var(--trust-contradicted-border);
   border-width: 2px;
-  border-style: double;
 }
+
+/* -- missing: absence, not disagreement. Dotted reads as "nothing here",
+      which is exactly what SOURCE_MISSING means, and keeps it visually apart
+      from contradicted. ------------------------------------------------------ */
 .badge.missing,
+.badge.source_missing,
 .badge.insufficient_evidence,
 .badge.exaggerated,
-.badge.archived {
+.badge.archived,
+.badge.absent {
   color: var(--trust-missing);
   background: var(--trust-missing-bg);
   border-color: currentColor;
-  border-style: dotted;
-}
-.badge.neutral {
-  color: var(--ink-1);
-  background: var(--surface-2);
-  border-color: var(--line-2);
+  border-style: var(--trust-missing-border);
 }
 
+.badge.neutral {
+  color: var(--trust-neutral);
+  background: var(--trust-neutral-bg);
+  border-color: currentColor;
+}
+
+/* -- actors: ENGINE / LLM / HUMAN ---------------------------------------
+   The architectural invariant made visible. These do not borrow trust colours,
+   and each varies border style so the three remain distinct in greyscale.
+   ENGINE is solid (it is the ground truth of the record), LLM is dashed (it is
+   provisional), HUMAN is double (it is the final authority). ------------- */
 .badge.actor-engine {
   color: var(--actor-engine);
   background: var(--actor-engine-bg);
   border-color: currentColor;
+  border-style: solid;
 }
+
 .badge.actor-llm {
   color: var(--actor-llm);
   background: var(--actor-llm-bg);
   border-color: currentColor;
   border-style: dashed;
 }
+
 .badge.actor-human {
   color: var(--actor-human);
   background: var(--actor-human-bg);
   border-color: currentColor;
+  border-style: double;
   border-width: 2px;
 }
 
-/* ---- buttons ---- */
+/* -- graph confidence: icon + label + border pattern ------------------ */
+.badge.confidence-verified {
+  border-style: solid;
+  border-width: 2px;
+}
+.badge.confidence-single_source {
+  border-style: dashed;
+}
+.badge.confidence-contradicted {
+  border-style: double;
+  border-width: 3px;
+}
+
+/* ==========================================================================
+   BUTTONS
+   ==========================================================================
+   Five states, all of them visible: hover, active (press), focus-visible,
+   disabled, and — because this is an audit tool — a distinct treatment for the
+   two consequential verdicts. Approve and Reject are the only buttons in the
+   product whose colour is a trust colour, because they are the only ones that
+   write to the permanent record. */
+
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 6px 13px;
-  font-size: 13px;
-  font-weight: 600;
+  gap: var(--space-2);
+  padding: 6px var(--space-4);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-caption);
   font-family: inherit;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line-2);
   background: var(--surface-0);
   color: var(--ink-0);
   cursor: pointer;
-  transition: background-color 90ms ease-out, border-color 90ms ease-out,
-    transform 90ms ease-out;
   white-space: nowrap;
+  user-select: none;
 }
+
 .btn:hover:not(:disabled) {
   background: var(--surface-2);
 }
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
-  transition-duration: 100ms;
-}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
 }
+
 .btn.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
+
 .btn.approve {
   background: var(--trust-approved-bg);
   border-color: var(--trust-approved);
   color: var(--trust-approved);
 }
+
+.btn.approve:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--trust-approved) 16%, var(--trust-approved-bg));
+}
+
 .btn.reject {
   background: var(--trust-rejected-bg);
   border-color: var(--trust-rejected);
   color: var(--trust-rejected);
 }
+
+.btn.reject:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--trust-rejected) 14%, var(--trust-rejected-bg));
+}
+
 .btn.ghost {
   background: transparent;
   border-color: transparent;
   color: var(--ink-1);
 }
+
 .btn.ghost:hover:not(:disabled) {
   background: var(--surface-2);
+  color: var(--ink-0);
 }
+
 .btn.sm {
-  padding: 3px 9px;
-  font-size: 12px;
+  padding: 3px var(--space-3);
+  font-size: var(--text-overline);
 }
+
+.btn.lg {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-body);
+}
+
+/* An icon-only control still needs a square hit area. */
+.btn.icon {
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: var(--radius-sm);
+}
+
 .btn-row {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
 
-/* ---- forms ---- */
+/* ==========================================================================
+   FORMS
+   ==========================================================================
+   Labels are overlines: small, uppercase, tracked. That is a structural voice
+   and using it consistently is what stops the form reading as a stack of
+   anonymous boxes. */
+
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 }
+
 label.field-label {
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--text-overline);
+  font-weight: var(--weight-semibold);
   color: var(--ink-1);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: var(--leading-overline);
 }
+
 input,
 select,
 textarea {
   font-family: inherit;
-  font-size: 13.5px;
-  padding: 7px 10px;
+  font-size: var(--text-secondary);
+  line-height: var(--leading-secondary);
+  padding: 7px var(--space-3);
   border: 1px solid var(--line-2);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--surface-0);
   color: var(--ink-0);
   width: 100%;
-  transition: border-color 90ms ease-out, box-shadow 90ms ease-out;
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard);
 }
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-3);
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--ink-3);
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -448,34 +733,64 @@ textarea:focus {
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
 textarea {
   resize: vertical;
   min-height: 90px;
-  font-family: inherit;
-}
-input[type='file'] {
-  padding: 6px;
-}
-.field-error {
-  font-size: 11.5px;
-  color: var(--danger);
-}
-.field-hint {
-  font-size: 11.5px;
-  color: var(--ink-2);
 }
 
-/* ---- feedback ---- */
+input[type='file'] {
+  padding: var(--space-2);
+}
+
+/* An invalid field is marked by border AND an icon in the message, never by
+   red alone. The message is always present in the DOM and revealed by
+   animation, so its arrival does not shift the layout. */
+.field-error {
+  font-size: var(--text-caption);
+  color: var(--danger);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  animation: field-error-in var(--dur-fast) var(--ease-enter) both;
+}
+
+input[aria-invalid='true'],
+textarea[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.field-hint {
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+  line-height: var(--leading-caption);
+}
+
+/* ==========================================================================
+   FEEDBACK
+   ========================================================================== */
+
 .alert {
-  padding: var(--space-3);
-  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line-2);
   background: var(--surface-2);
-  font-size: 13px;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-3);
   align-items: flex-start;
 }
+
 .alert.error {
   background: var(--danger-bg);
   border-color: var(--danger);
@@ -492,128 +807,115 @@ input[type='file'] {
   color: var(--accent);
 }
 .alert.ok {
-  background: var(--trust-approved-bg);
-  border-color: var(--trust-approved);
-  color: var(--trust-approved);
+  background: var(--success-bg);
+  border-color: var(--success);
+  color: var(--success);
 }
+
 .alert-trace {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-overline);
   opacity: 0.8;
   margin-left: auto;
   white-space: nowrap;
 }
 
 .empty {
-  padding: var(--space-6);
+  padding: var(--space-8) var(--space-6);
   text-align: center;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-secondary);
+  line-height: var(--leading-secondary);
 }
+
 .empty-title {
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   color: var(--ink-1);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-card-title);
 }
 
-.spinner {
-  width: 15px;
-  height: 15px;
-  border: 2px solid var(--line-2);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  display: inline-block;
-  vertical-align: -2px;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+/* ==========================================================================
+   EVIDENCE AND PROVENANCE
+   ==========================================================================
+   Evidence is what a reviewer reads all day, so it gets the widest measure in
+   the product, its own inset surface, and generous leading. The left rule is
+   the provenance marker and is always paired with an explicit "source" label
+   in the markup — a coloured bar alone would not say who produced the text. */
 
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--surface-2) 25%,
-    var(--surface-3) 50%,
-    var(--surface-2) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.3s ease-in-out infinite;
-  border-radius: var(--radius-sm);
-  height: 12px;
-}
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-/* ---- evidence & provenance ---- */
 .evidence {
   background: var(--surface-inset);
   border-left: 3px solid var(--line-2);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-size: 12.5px;
-  line-height: 1.6;
+  font-size: var(--text-secondary);
+  line-height: 1.65;
   color: var(--ink-1);
+  max-width: 78ch;
 }
+
 .evidence + .evidence {
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
 }
+
 .evidence-meta {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-4);
   flex-wrap: wrap;
-  font-size: 11px;
+  font-size: var(--text-overline);
   color: var(--ink-2);
-  margin-top: 4px;
+  margin-top: var(--space-2);
   font-family: var(--font-mono);
 }
+
 .quote {
   font-style: italic;
   color: var(--ink-1);
   border-left: 2px solid var(--line-2);
-  padding-left: var(--space-2);
+  padding-left: var(--space-3);
 }
 
 .kv {
   display: grid;
   grid-template-columns: minmax(120px, auto) 1fr;
-  gap: 3px var(--space-3);
-  font-size: 13px;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  margin: 0;
 }
+
 .kv dt {
   color: var(--ink-2);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--text-overline);
+  font-weight: var(--weight-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding-top: 1px;
+  letter-spacing: 0.05em;
+  padding-top: 2px;
 }
+
 .kv dd {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
+  color: var(--ink-0);
 }
 
 code.inline {
   background: var(--surface-2);
   padding: 1px 5px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-code);
 }
+
+/* ==========================================================================
+   LAYOUT UTILITIES
+   ========================================================================== */
 
 .muted {
   color: var(--ink-2);
 }
 .tiny {
-  font-size: 11.5px;
+  font-size: var(--text-caption);
 }
 .nowrap {
   white-space: nowrap;
@@ -621,104 +923,29 @@ code.inline {
 .right {
   text-align: right;
 }
+
 .stack {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--gap-default);
 }
 .stack.tight {
-  gap: var(--space-2);
+  gap: var(--gap-tight);
 }
+
 .row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+
 .spread {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
-}
-
-.disclosure > summary {
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-2);
-  padding: 4px 0;
-  list-style: none;
-  user-select: none;
-}
-.disclosure > summary::before {
-  content: '▸ ';
-  display: inline-block;
-  transition: transform 120ms ease-out;
-}
-.disclosure[open] > summary::before {
-  content: '▾ ';
-}
-.disclosure > summary::-webkit-details-marker {
-  display: none;
-}
-
-/* Pipeline strip (dashboard + document detail): stages as links, never
-   color-alone — the label text carries the meaning, counts are plain ink. */
-.pipeline-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: var(--space-4) 0;
-}
-
-.pipeline-stage {
-  flex: 1 1 120px;
-  text-align: center;
-  padding: var(--space-3);
-  border: 1px solid var(--line-1);
-  border-radius: var(--radius);
-  background: var(--surface-0);
-  color: var(--ink-0);
-  text-decoration: none;
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
-}
-
-a.pipeline-stage:hover {
-  border-color: var(--line-2);
-  text-decoration: none;
-}
-
-.pipe-stage {
-  flex: 1 1 120px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  border: 1px solid var(--line-1);
-  border-radius: var(--radius);
-  background: var(--surface-0);
-  color: var(--ink-0);
-  text-decoration: none;
-}
-
-a.pipe-stage:hover {
-  border-color: var(--line-2);
-}
-
-.pipe-value {
-  font-size: 1.5rem;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-
-.pipe-label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .dash-actions,
@@ -731,90 +958,312 @@ a.pipe-stage:hover {
   gap: var(--space-2);
 }
 
-/* Pager: three honest elements — back, position, forward. */
 .pager {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
 }
 
 .search-field {
   max-width: 320px;
 }
 
-/* Pipeline stepper states. Text carries the state; the border is decoration. */
+/* ==========================================================================
+   DISCLOSURE
+   ========================================================================== */
+
+.disclosure > summary {
+  cursor: pointer;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-2);
+  padding: var(--space-2) 0;
+  list-style: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.disclosure > summary:hover {
+  color: var(--ink-0);
+}
+
+.disclosure > summary::before {
+  content: '';
+  /* A drawn chevron rather than a glyph, so it rotates smoothly and matches
+     the icon weight used elsewhere. */
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+.disclosure[open] > summary::before {
+  content: '';
+}
+
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure > *:not(summary) {
+  animation: route-enter var(--dur-fast) var(--ease-enter) both;
+}
+
+/* ==========================================================================
+   PIPELINE
+   ==========================================================================
+   One class, not two. An earlier revision carried both `.pipeline-stage` and
+   `.pipe-stage` with near-identical rules, which meant a change to one silently
+   did nothing to the other and the two call sites drifted apart.
+
+   Progress is read from real backend state by the component; this file only
+   styles it. The done/active distinction is border weight plus an explicit
+   word in the markup, never colour alone. */
+
+.pipeline-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  list-style: none;
+  padding: 0;
+}
+
+.pipe-stage {
+  flex: 1 1 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--ink-0);
+  text-decoration: none;
+  text-align: center;
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard);
+}
+
+a.pipe-stage:hover {
+  border-color: var(--line-2);
+  text-decoration: none;
+}
+
+.pipe-value {
+  font-size: var(--text-stat);
+  font-weight: var(--weight-emphasis);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-stat);
+  letter-spacing: var(--tracking-stat);
+}
+
+.pipe-label {
+  font-size: var(--text-overline);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
+
 .pipe-stage.done {
-  border-style: solid;
+  border-style: var(--trust-approved-border);
   border-color: var(--trust-approved);
+}
+
+.pipe-stage.done .pipe-value {
+  color: var(--ink-1);
 }
 
 .pipe-stage.active {
   border-width: 2px;
   border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
-/* Modal + drawer. Drawer docks right on desktop, sheets from the bottom on
-   small screens — same component, no JS breakpoint. */
+.pipe-stage.active .pipe-label {
+  color: var(--accent);
+}
+
+.pipe-stage.failed {
+  border-style: var(--trust-rejected-border);
+  border-color: var(--trust-rejected);
+}
+.pipe-stage.failed .pipe-label {
+  color: var(--trust-rejected);
+}
+
+/* ==========================================================================
+   OVERLAY CHROME
+   ==========================================================================
+   Only the container here. The entrance animations live in motion.css, which
+   owns all movement in the product. */
+
 .modal-backdrop,
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(18, 21, 26, 0.4);
-  z-index: 40;
+  background: var(--surface-scrim);
+  z-index: var(--z-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
+  /* A modal is a task the user has committed to: the scrim is opaque enough to
+     focus attention and click-through is disabled, but the page stays legible
+     behind it rather than becoming a black wall. */
+  padding: var(--space-5);
 }
 
 .modal {
   background: var(--surface-0);
   border: 1px solid var(--line-1);
-  border-radius: var(--radius);
-  padding: var(--space-5);
-  max-width: 480px;
-  width: calc(100vw - var(--space-6));
+  border-radius: var(--radius-lg);
+  /* An overlay is the largest surface in the product, so it takes the widest
+     reading measure and the largest radius. */
+  padding: var(--space-6);
+  max-width: 520px;
+  width: 100%;
+  max-height: min(86vh, 720px);
+  overflow-y: auto;
+  box-shadow: var(--shadow-overlay);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .modal h3 {
   margin: 0;
 }
 
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  /* Separated from the body so the actions stay reachable when the body
+     scrolls. */
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line-1);
+  margin-top: auto;
+}
+
 .drawer-backdrop {
   justify-content: flex-end;
+  padding: 0;
 }
 
 .drawer {
   background: var(--surface-0);
   border-left: 1px solid var(--line-1);
-  width: min(420px, 100vw);
+  width: min(440px, 100vw);
   height: 100%;
   overflow-y: auto;
-  padding: var(--space-4);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-overlay);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
-/* Confidence badges: icon + label + border pattern, never color alone. */
-.badge.confidence-verified {
-  border-style: solid;
-  border-width: 2px;
-}
+/* ==========================================================================
+   RESPONSIVE
+   ==========================================================================
+   Reflow, not shrink. Below 900px the sidebar becomes a horizontal strip, the
+   two-column grids collapse, and the drawer becomes a bottom sheet — the same
+   component, moved to the edge it now belongs to. */
 
-.badge.confidence-single_source {
-  border-style: dashed;
-}
+@media (max-width: 1024px) {
+  .main {
+    padding: var(--space-6) var(--space-5) var(--space-9);
+  }
 
-.badge.confidence-contradicted {
-  border-style: double;
-  border-width: 3px;
+  .grid.cols-4 {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--line-1);
+    /* Horizontal navigation on narrow screens: the groups scroll sideways
+       rather than the whole sidebar scrolling vertically, which would take
+       most of the viewport on a phone. */
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .brand {
+    padding: 0;
+  }
+
+  .sidebar > .field {
+    /* The corpus picker is a wide control; on its own row it needs to be. */
+    flex: 1 1 200px;
+    min-width: 160px;
+  }
+
+  .nav-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .nav-group-label {
+    display: none;
+  }
+
+  .nav-link {
+    padding: var(--space-1) var(--space-3);
+  }
+
+  /* The active rule moves from the left edge to the bottom, because there is
+     no longer a left edge to sit against. */
+  .nav-link.active {
+    box-shadow: inset 0 -2px 0 var(--accent);
+  }
+
+  /* A vertical rail is meaningless once the nav runs horizontally. */
+  .nav-rail {
+    display: none;
+  }
+
+  .sidebar-footer {
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .who {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .grid.cols-2,
+  .grid.cols-3 {
+    grid-template-columns: 1fr;
+  }
+
   .drawer-backdrop {
     align-items: flex-end;
     justify-content: stretch;
@@ -826,6 +1275,30 @@ a.pipe-stage:hover {
     max-height: 82vh;
     border-left: none;
     border-top: 1px solid var(--line-1);
-    border-radius: var(--radius) var(--radius) 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: var(--space-5) var(--space-4) var(--space-9);
+  }
+
+  .grid.cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-header {
+    margin-bottom: var(--space-5);
+  }
+
+  .modal-backdrop {
+    padding: var(--space-3);
+    align-items: flex-end;
+  }
+
+  .modal {
+    padding: var(--space-5);
+    max-height: 90vh;
   }
 }
