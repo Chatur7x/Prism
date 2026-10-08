@@ -97,6 +97,16 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
+      # Numeric knobs must resolve to a value here: the compose layer cannot
+      # distinguish "unset" from "empty string", and an empty string fails to
+      # bind to an int/double property and takes the whole context down. These
+      # defaults mirror the application defaults, so behaviour is unchanged
+      # unless an operator deliberately overrides.
+      LLM_CONNECT_TIMEOUT_SECONDS: ${LLM_CONNECT_TIMEOUT_SECONDS:-10}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-120}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.0}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-3}
       # 12 is the floor enforced by PasswordPolicy, and the compose file holds to
       # it so a weak demo password cannot be seeded here and then fail in a
       # deployed environment.

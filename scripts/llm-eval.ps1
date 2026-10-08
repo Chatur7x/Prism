@@ -68,7 +68,11 @@ if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Pa
 # back-off loop is needed here -- unlike the scripts that create accounts.
 function Invoke-Prism {
   param([string]$Uri, [hashtable]$Headers, [string]$Method = 'GET', [string]$Body)
-  $p = @{ Uri = $Uri; Method = $Method; Headers = $Headers; TimeoutSec = 120 }
+  # One provider call per chunk, issued sequentially, so wall time is roughly
+  # (chunks x per-call latency). Against a CPU-local 7B model that is tens of
+  # minutes. This ceiling only bounds how long the script WAITS; it changes
+  # nothing about provider timeouts, retries or rate limiting.
+  $p = @{ Uri = $Uri; Method = $Method; Headers = $Headers; TimeoutSec = 3600 }
   if ($Body) { $p.ContentType = 'application/json'; $p.Body = $Body }
   try { return Invoke-RestMethod @p }
   catch {
@@ -89,7 +93,14 @@ function Invoke-Prism {
         }
       } catch { }
     }
-    if ($null -ne $parsed) { return $parsed }
+    # A parsed error body must still carry its status. Returning it bare makes
+    # StatusOf() fall through to 200, which prints a vacuous all-blank report
+    # instead of failing -- a failure dressed up as a result.
+    if ($null -ne $parsed) {
+      $parsed | Add-Member -NotePropertyName '__status' -NotePropertyValue $s -Force
+      $parsed | Add-Member -NotePropertyName '__message' -NotePropertyValue $_.Exception.Message -Force
+      return $parsed
+    }
     return [pscustomobject]@{ __status = $s; __message = $_.Exception.Message }
   }
 }

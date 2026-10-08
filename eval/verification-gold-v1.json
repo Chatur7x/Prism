@@ -1,0 +1,88 @@
+{
+  "datasetVersion": "verification-gold-v1",
+  "createdAt": "2026-10-07",
+  "corpusName": "Delacroix Group PDF dossier",
+  "description": "Hand-labelled claim verdicts over the Delacroix PDF demo corpus. Each item states the claim text, the expected machine verdict, and WHY — the corpus facts that determine it — so the label can be checked against scripts/make-demo-pdfs.py rather than trusted. Labels were authored from the planted corpus facts before any judge output was consulted, and never derived from running a verifier.",
+
+  "howItWasLabelled": "By reading the planted canonical sentences in scripts/make-demo-pdfs.py and the predicate semantics in PredicateSemanticRegistry, then recording what verdict a correct judge must reach. SUPPORTED items cite uncontested MULTI-predicate facts with direct evidence. CONTRADICTED items cite SINGLE non-temporal predicates with two mutually exclusive planted values, where the evidence directly asserts the other value. INSUFFICIENT_EVIDENCE items cite SINGLE temporal predicates (sequential values are possible, so neither refutes the other). Items whose claim text does not resolve to exactly one APPROVED claim at run time are SKIPPED and reported, never scored.",
+
+  "limitations": [
+    "This is 10 items against one small fictional corpus. It is NOT a statistically representative sample and must never be reported as one.",
+    "The set is SUPPORTED-heavy (6/10) because the corpus plants mostly uncontested MULTI facts; contested SINGLE facts are few by design. Per-category precision/recall/F1 are reported only where sample size supports them.",
+    "EXAGGERATED and SOURCE_MISSING have one candidate each and may resolve to zero scorable items if the extractor did not produce those claim texts; the runner reports skips explicitly rather than silently dropping categories.",
+    "Contested SINGLE-predicate items (V7, V8) depend on which passages retrieval returns; if retrieval returns only the supporting passage, a correct judge returns SUPPORTED and the item is a retrieval miss, not a judge error. The runner records evidenceCount so this is diagnosable."
+  ],
+
+  "items": [
+    {
+      "id": "V1",
+      "claimText": "Delacroix Group invests_in Verity Foods",
+      "expectedVerdict": "SUPPORTED",
+      "category": "direct-evidence",
+      "rationale": "Planted sentence exists verbatim. invests_in is MULTI with no bound, asserted four times for different objects without conflict. Nothing refutes it."
+    },
+    {
+      "id": "V2",
+      "claimText": "Saltmarsh Freight operates_in Halden",
+      "expectedVerdict": "SUPPORTED",
+      "category": "direct-evidence",
+      "rationale": "Planted sentence exists verbatim. operates_in is MULTI. No competing value."
+    },
+    {
+      "id": "V3",
+      "claimText": "Aurelia Holdings allied_with Orion Systems",
+      "expectedVerdict": "SUPPORTED",
+      "category": "direct-evidence",
+      "rationale": "Planted sentence exists verbatim. allied_with is MULTI. No competing value."
+    },
+    {
+      "id": "V4",
+      "claimText": "Corvale Analytics exports_to Halden Ports",
+      "expectedVerdict": "SUPPORTED",
+      "category": "direct-evidence",
+      "rationale": "Planted sentence exists verbatim. exports_to is MULTI. No competing value."
+    },
+    {
+      "id": "V5",
+      "claimText": "Lumen Analytics located_in Halden",
+      "expectedVerdict": "SUPPORTED",
+      "category": "direct-evidence",
+      "rationale": "Planted sentence exists verbatim. located_in is SINGLE temporal, but only one value is planted, so no sequential alternative exists to unsettle it."
+    },
+    {
+      "id": "V6",
+      "claimText": "Kestrel Components sources_from Vantage Materials",
+      "expectedVerdict": "SUPPORTED",
+      "category": "direct-evidence",
+      "rationale": "Planted sentence exists verbatim. sources_from is BOUNDED at 3 with four asserted values, which is a bound violation at the corpus level, but the individual claim is directly evidenced. The violation is flagged by contradiction detection, not by the verdict on this claim."
+    },
+    {
+      "id": "V7",
+      "claimText": "Delacroix Group reports_to Aurelia Holdings",
+      "expectedVerdict": "CONTRADICTED",
+      "category": "mutually-exclusive-single",
+      "rationale": "reports_to is SINGLE and non-temporal. The corpus also plants reports_to Brightwater Partners, a mutually exclusive value. Retrieved evidence directly asserts the other value, refuting this claim."
+    },
+    {
+      "id": "V8",
+      "claimText": "Verity Foods subsidiary_of Delacroix Group",
+      "expectedVerdict": "CONTRADICTED",
+      "category": "mutually-exclusive-single",
+      "rationale": "subsidiary_of is SINGLE and non-temporal. The corpus also plants subsidiary_of Brightwater Partners. Retrieved evidence directly asserts the other value, refuting this claim."
+    },
+    {
+      "id": "V9",
+      "claimText": "Lumen Analytics chief_executive R. Ashworth",
+      "expectedVerdict": "INSUFFICIENT_EVIDENCE",
+      "category": "temporal-ambiguity",
+      "rationale": "chief_executive is SINGLE temporal. The corpus also plants chief_executive M. Okonjo. Two sequential holders are possible, so the evidence is relevant but does not settle whether Ashworth holds the role now."
+    },
+    {
+      "id": "V10",
+      "claimText": "Delacroix Group headquartered_in Harrowgate",
+      "expectedVerdict": "INSUFFICIENT_EVIDENCE",
+      "category": "temporal-ambiguity",
+      "rationale": "headquartered_in is SINGLE temporal. The corpus also plants headquartered_in Brightwater. A relocation is possible, so the evidence is relevant but does not settle the current location."
+    }
+  ]
+}
