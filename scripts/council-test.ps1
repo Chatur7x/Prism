@@ -136,7 +136,15 @@ if ($login.user.role -notin @('VERIFIER', 'ADMIN')) {
 
 Say ''
 Say 'finding an OPEN contradiction to convene a Council over' 'Cyan'
-$findings = Invoke-Prism -Uri "$Base/api/contradictions?corpusId=${CorpusId}&status=OPEN&size=50"
+# corpusId=0 is the "not supplied" sentinel, not a real corpus. Sending it
+# literally makes the server answer 404. Omit the parameter so the server
+# defaults to the caller's accessible corpora.
+$findUri = if ($CorpusId -gt 0) {
+    "$Base/api/contradictions?corpusId=$CorpusId&status=OPEN&size=50"
+} else {
+    "$Base/api/contradictions?status=OPEN&size=50"
+}
+$findings = Invoke-Prism -Uri $findUri
 $open = @($findings.content)
 Say "  $($open.Count) OPEN finding(s) available"
 

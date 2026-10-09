@@ -117,8 +117,12 @@ public class Argument {
      */
     public static Argument failed(DebateRound round, Debate debate, Persona persona,
                                   String reason, String model, String promptVersion) {
+        // The persona must be named for the Glass Box to be honest, but a null
+        // here must not turn a slow model into a server fault: the failure is
+        // recorded either way, just without the persona name if it is unknown.
+        String who = (persona == null) ? "persona" : persona.name();
         Argument argument = new Argument(round, debate, persona,
-                "No argument was produced. The " + persona.name()
+                "No argument was produced. The " + who
                         + " call did not complete: " + reason
                         + ". This is recorded as a failure, not as a position.",
                 null, model, promptVersion, null);

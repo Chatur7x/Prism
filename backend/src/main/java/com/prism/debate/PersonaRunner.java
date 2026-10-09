@@ -107,16 +107,26 @@ public class PersonaRunner {
         }
 
         List<PersonaResult> results = new ArrayList<>();
-        for (CompletableFuture<PersonaResult> future : futures) {
+        // Indexed, not a bare for-each: futures[i] corresponds to
+        // Persona.values()[i] because both loops iterate the enum in order.
+        // Keeping the index lets a timeout or an execution failure still name
+        // the persona that produced it, which Argument.failed() requires and
+        // which the Glass Box trace needs to be honest about which voice was
+        // lost. Passing null here made a slow model look like a server fault.
+        Persona[] personas = Persona.values();
+        for (int i = 0; i < futures.size(); i++) {
+            Persona persona = personas[i];
             try {
-                results.add(future.get(timeoutSeconds + 30L, TimeUnit.SECONDS));
+                results.add(futures.get(i).get(timeoutSeconds + 30L, TimeUnit.SECONDS));
             } catch (TimeoutException ex) {
                 // The task may still be running; record the timeout as a failure.
-                results.add(PersonaResult.failure(null, null,
+                log.warn("Persona {} exceeded the {}s budget", persona, timeoutSeconds + 30L);
+                results.add(PersonaResult.failure(persona, promptVersionFor(persona),
                         "a persona call exceeded the " + timeoutSeconds + "s budget"));
             } catch (Exception ex) {
                 Throwable cause = unwrap(ex);
-                results.add(PersonaResult.failure(null, null,
+                log.warn("Persona {} could not be collected: {}", persona, cause.getMessage());
+                results.add(PersonaResult.failure(persona, promptVersionFor(persona),
                         "a persona call failed: " + cause.getMessage()));
             }
         }

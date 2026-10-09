@@ -10,7 +10,14 @@
 # stage is broken.
 
 param(
-  [string]$Base = "http://localhost:8080"
+  [string]$Base = "http://localhost:8080",
+  # How long to wait for asynchronous extraction to settle. The 80s default
+  # is the offline fixture's budget: with LLM_PROVIDER=fake, chunking plus
+  # deterministic parsing finishes in seconds. Under a real provider on a CPU
+  # box one model call per chunk at ~25s each dominates, so raise this.
+  # The check itself is unchanged: extraction must still reach a terminal
+  # state, the wait is simply longer.
+  [int]$SettleTimeoutSec = 80
 )
 
 $ErrorActionPreference = "Stop"
@@ -141,14 +148,15 @@ try {
 
 Step "Wait for asynchronous extraction to settle"
 $progress = $null
-for ($i = 0; $i -lt 40; $i++) {
+$settleIterations = [Math]::Ceiling($SettleTimeoutSec / 2)
+for ($i = 0; $i -lt $settleIterations; $i++) {
   Start-Sleep -Seconds 2
   try {
     $progress = Invoke-RestMethod -Uri "$Base/api/documents/$documentId/progress" -Headers $headers -TimeoutSec 15
   } catch { continue }
   if ($progress.status -in @('AWAITING_APPROVAL','READY','FAILED')) { break }
 }
-Check "extraction reached a terminal state" ($progress.status -in @('AWAITING_APPROVAL','READY','FAILED')) "still $($progress.status) after 80s"
+Check "extraction reached a terminal state" ($progress.status -in @('AWAITING_APPROVAL','READY','FAILED')) "still $($progress.status) after $SettleTimeoutSec${'s'}"
 Check "chunks were produced" ($progress.chunkCount -gt 0) "chunkCount=$($progress.chunkCount)"
 Check "proposals or quarantine were recorded" (($progress.triplesFound + $progress.claimsFound + $progress.quarantinedCount) -gt 0) "triples=$($progress.triplesFound) claims=$($progress.claimsFound) quarantine=$($progress.quarantinedCount)"
 
