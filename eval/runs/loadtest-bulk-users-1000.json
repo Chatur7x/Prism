@@ -1,0 +1,41 @@
+{
+  "runId": "loadtest-bulk-users-1000",
+  "executedAt": "2026-10-09T14:05:00Z",
+  "provider": "mixed (user creation: no LLM; ingestion probe: real qwen2.5:7b)",
+  "environment": {
+    "os": "Windows 11 Home",
+    "cpu": "Intel Core Ultra 5 125H",
+    "llmProvider": "openai-compatible",
+    "llmModel": "qwen2.5:7b",
+    "llmEndpoint": "http://host.docker.internal:11435/v1",
+    "llmTimeoutSeconds": 900,
+    "note": "Ollama runs on CPU on this machine (no GPU). Confirmed: nvidia-smi absent."
+  },
+  "userCreation": {
+    "target": 1000,
+    "method": "POST /api/admin/users (bootstrap ADMIN bearer token)",
+    "result": 1047 total users in DB (1 ADMIN, 1 VERIFIER, 1045 ANALYST load accounts)",
+    "measuredThroughputPerSec": 3.03,
+    "rateLimited": false,
+    "finding": "POST /api/admin/users is NOT behind the rate limiter, so bulk creation is fast and unbounded. 1045 load accounts were created in about 5.5 minutes with zero 429s."
+  },
+  "tokenAcquisition": {
+    "target": 1000,
+    "method": "POST /api/auth/login (10/min per source IP)",
+    "result": "NOT COMPLETED - deliberately stopped",
+    "finding": "Login is rate-limited to 10 requests/min per source IP. Acquiring a token for each of 1000 accounts would take about 2 hours at the 8/min pacing the harness allows. This is a correct security control and was NOT weakened or bypassed. The harness was stopped rather than distorting production reliability behaviour.",
+    "implication": "The binding constraint on 'activating' N accounts is the auth rate limiter, not PRISM's ability to create them. Any capacity statement about per-user session establishment must account for this."
+  },
+  "documentIngestion": {
+    "note": "Probed while the backend was on the REAL qwen2.5:7b provider, not the fake fixture.",
+    "uploadAckMs": { "p50": 1469, "samples": 2 },
+    "settled": 2,
+    "settleFailed": 0,
+    "chunksProcessed": 8,
+    "quarantined": 4,
+    "finding": "With the real CPU-bound model active, wall-time-to-AWAITING_APPROVAL was 276 s for 2 documents (8 chunks), versus 6193 ms for a 6-chunk document on the fake fixture baseline in docs/performance.md. This is expected and is not a regression: the fake fixture performs no model call, the real path performs one sequential model call per chunk at roughly 24-46 s each on CPU.",
+    "comparability": "These numbers are NOT comparable with docs/performance.md, which measured LLM_PROVIDER=fake. They are reported separately and labelled with the real provider."
+  },
+  "rateLimitRetries": 14,
+  "disclaimer": "Not a scalability claim. One developer machine, one backend, one CPU-bound Ollama instance also serving the active evaluation run."
+}
