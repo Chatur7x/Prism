@@ -82,7 +82,12 @@ services:
         # with a connection error that looks like a configuration problem.
         condition: service_healthy
     environment:
-      DB_URL: "jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-prism}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8"
+      # DB_URL honours the process environment so the backend can point at an
+      # external database (e.g. Aiven) without editing this file. The default
+      # keeps the local Docker MySQL. NOTE: a previous version hardcoded the
+      # local URL here, which silently discarded any DB_URL override — every
+      # "Aiven attempt" actually hit local MySQL and failed with 1045.
+      DB_URL: ${DB_URL:-jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-prism}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8}
       DB_USERNAME: ${DB_USERNAME:-prism}
       DB_PASSWORD: ${DB_PASSWORD:-prism}
       # No default. If this is unset, compose substitutes an empty string and
