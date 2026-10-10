@@ -88,7 +88,7 @@ try {
     $isFake = [bool]$status.offlineTestMode
     $providerSource = 'admin system status'
   } else {
-    $log = docker logs prism-backend 2>&1 | Select-String -Pattern 'LLM PROVIDER = (\w+)' | Select-Object -Last 1
+    $log = docker logs prism-backend 2>&1 | Select-String -Pattern 'LLM [Pp][Rr][Oo][Vv][Ii][Dd][Ee][Rr][ :=]+(\w[\w-]*)' | Select-Object -Last 1
     if ($log -and $log.Matches[0].Groups[1].Value -ne 'fake') { $isFake = $false; $providerSource = 'backend boot log' }
     elseif ($log) { $providerSource = 'backend boot log' }
   }
@@ -106,8 +106,18 @@ if ($RequireRealModel -and $isFake) {
 $claims = Invoke-Prism -Uri "$Base/api/claims?corpusId=$CorpusId&size=500" -Headers $h
 if ((StatusOf $claims) -ne 200) { Say 'could not list claims' 'Red'; exit 2 }
 $byText = @{}
+function Norm-ClaimText([string]$s) {
+  # The extractor terminates claim texts with a period; the gold set records
+  # them without one. Normalise both sides identically (trim, strip trailing
+  # periods, collapse whitespace) so a punctuation difference is not scored
+  # as a missing claim. Matching remains exact after normalisation: no
+  # fuzzy, substring, or alias resolution.
+  if ($null -eq $s) { return '' }
+  $t = $s.Trim().TrimEnd('.').Trim()
+  return ($t -replace '\s+', ' ')
+}
 foreach ($c in @($claims.content)) {
-  $t = "$($c.claimText)".Trim()
+  $t = Norm-ClaimText "$($c.claimText)"
   if (-not $byText.ContainsKey($t)) { $byText[$t] = @() }
   $byText[$t] += $c
 }
@@ -115,7 +125,7 @@ foreach ($c in @($claims.content)) {
 $items = @()
 $skipped = @()
 foreach ($g in @($gold.items)) {
-  $hits = $byText["$($g.claimText)".Trim()]
+  $hits = $byText[(Norm-ClaimText "$($g.claimText)")]
   if ($null -eq $hits -or @($hits).Count -eq 0) { $skipped += [pscustomobject]@{ id = $g.id; reason = 'claim text not found in corpus' }; continue }
   if (@($hits).Count -gt 1) { $skipped += [pscustomobject]@{ id = $g.id; reason = "ambiguous: $(@($hits).Count) claims share the text" }; continue }
   $c = @($hits)[0]
