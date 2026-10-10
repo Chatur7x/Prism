@@ -175,6 +175,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   // Only set a content type when there is a body: announcing JSON on a GET makes
   // some proxies reject the request for no reason.
   if (body !== undefined) headers['Content-Type'] = 'application/json'
+  // Bypass ngrok's browser interstitial when the API is exposed through a
+  // tunnel during demos. Inert against any non-ngrok backend, which ignores
+  // unknown request headers. (Backend must also list it in CORS allowedHeaders.)
+  headers['ngrok-skip-browser-warning'] = 'true'
 
   const controller = new AbortController()
   const timeout = window.setTimeout(

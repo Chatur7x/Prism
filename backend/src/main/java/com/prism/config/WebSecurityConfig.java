@@ -192,7 +192,11 @@ public class WebSecurityConfig {
         }
         config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Trace-Id", "Accept"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Trace-Id", "Accept",
+                // Inert client hint that bypasses ngrok's browser interstitial when the
+                // API is demoed through a tunnel. Permitting a request header grants
+                // no origin any access; origins are still governed by the allow-list.
+                "ngrok-skip-browser-warning"));
         config.setExposedHeaders(List.of("X-Trace-Id"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
