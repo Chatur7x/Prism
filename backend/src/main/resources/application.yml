@@ -1,5 +1,7 @@
 server:
-  port: ${SERVER_PORT:8080}
+  # Render (and most PaaS) injects PORT and probes it: fall back to it so the
+  # same image works on Render with zero extra config. Local default unchanged.
+  port: ${SERVER_PORT:${PORT:8080}}
   error:
     include-stacktrace: never
     include-message: never

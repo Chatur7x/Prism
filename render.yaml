@@ -1,0 +1,55 @@
+# Render blueprint for the PRISM backend (API only — frontend lives on Vercel).
+#
+# What this fixes over a bare "deploy Dockerfile" click-through:
+#   - healthCheckPath hits /actuator/health, so Render restarts real crashes
+#     instead of serving 503s from a half-started JVM;
+#   - no port is hardcoded here: the app reads $PORT via application.yml
+#     (SERVER_PORT -> PORT -> 8080), which is what Render probes;
+#   - every secret is `sync: false`, so no credential is ever committed —
+#     set each one once in the Render dashboard and it stays there.
+#
+# After `render.yaml` is on master: Render dashboard -> New -> Blueprint ->
+# select the repo. Then set the sync:false values below and deploy.
+services:
+  - type: web
+    name: prism-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      # --- database (Aiven MySQL): must be WORKING credentials ----------------
+      # A 1045 here fails Flyway and the JVM exits -> Render serves 503.
+      # Verify with a local mysql client before pasting.
+      - key: DB_URL
+        value: jdbc:mysql://mysql-2215e10b-chaturrr18-4179.k.aivencloud.com:28441/defaultdb?useSSL=true&requireSSL=true&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true
+      - key: DB_USERNAME
+        value: Chatur7
+      - key: DB_PASSWORD
+        sync: false
+      # --- auth: boot ABORTS without a 32+ byte secret (fail-closed) -----------
+      - key: JWT_SECRET
+        sync: false
+      # --- browser frontend origin(s): wildcard is refused at boot ------------
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://prism-igbb2ghuy-chatur7xs-projects.vercel.app
+      # --- LLM (Groq, OpenAI-compatible) --------------------------------------
+      - key: LLM_PROVIDER
+        value: openai
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_EXTRACT_MODEL
+        value: openai/gpt-oss-20b
+      - key: LLM_JUDGE_MODEL
+        value: openai/gpt-oss-20b
+      - key: LLM_DEBATE_MODEL
+        value: openai/gpt-oss-20b
+      - key: LLM_SYNTHESIS_MODEL
+        value: openai/gpt-oss-20b
+      - key: LLM_CHAT_MODEL
+        value: openai/gpt-oss-20b
+      - key: LLM_TIMEOUT_SECONDS
+        value: 300
