@@ -97,6 +97,14 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
+      # Per-purpose model routing. Defaults mirror application.yml so behaviour
+      # is unchanged unless an operator overrides. Numeric-safe: every entry
+      # resolves to a real value (empty strings break int/double binding).
+      LLM_EXTRACT_MODEL: ${LLM_EXTRACT_MODEL:-qwen2.5:7b}
+      LLM_JUDGE_MODEL: ${LLM_JUDGE_MODEL:-qwen2.5:7b}
+      LLM_DEBATE_MODEL: ${LLM_DEBATE_MODEL:-qwen2.5:7b}
+      LLM_SYNTHESIS_MODEL: ${LLM_SYNTHESIS_MODEL:-qwen2.5:7b}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-qwen2.5:7b}
       # Numeric knobs must resolve to a value here: the compose layer cannot
       # distinguish "unset" from "empty string", and an empty string fails to
       # bind to an int/double property and takes the whole context down. These
