@@ -27,12 +27,20 @@
       localhost:8080 here used to leak the dev topology into the production
       bundle — the very coupling the nginx architecture exists to avoid.
 
+      The one exception is a split static deployment (Vercel) whose bundle
+      calls a remote API base: `%VITE_API_BASE%` is interpolated by Vite at
+      build time, so a production build with that variable set emits
+      `connect-src 'self' https://<api-host>`. When the variable is unset
+      (docker, dev, Pages) the literal placeholder survives into the meta tag,
+      where browsers skip it as an unrecognised source and enforce 'self'
+      alone — verified in `dist/index.html` after a local build.
+
       'unsafe-inline' is permitted for styles only, because React injects a
       style element at runtime. Scripts are NOT permitted inline.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' %VITE_API_BASE%; base-uri 'self'; form-action 'self'; object-src 'none'"
     />
     <title>PRISM — auditable AI analysis</title>
   </head>
