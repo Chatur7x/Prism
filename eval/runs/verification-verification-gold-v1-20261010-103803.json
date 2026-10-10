@@ -1,0 +1,94 @@
+﻿{
+    "runId":  "c013eedf-ad3b-4ea8-bac8-147177dd2bab",
+    "executedAt":  "2026-10-10T05:08:03.6313575Z",
+    "datasetVersion":  "verification-gold-v1",
+    "corpusId":  1,
+    "provider":  "real",
+    "judgeModel":  "qwen2.5:7b",
+    "testMode":  false,
+    "accuracy":  0.5,
+    "scored":  4,
+    "matches":  2,
+    "skipped":  [
+                    {
+                        "id":  "V1",
+                        "reason":  "claim text not found in corpus"
+                    },
+                    {
+                        "id":  "V2",
+                        "reason":  "claim 60 has status VERIFIED; only APPROVED claims are verified"
+                    },
+                    {
+                        "id":  "V3",
+                        "reason":  "claim 68 has status VERIFIED; only APPROVED claims are verified"
+                    },
+                    {
+                        "id":  "V4",
+                        "reason":  "claim 87 has status VERIFIED; only APPROVED claims are verified"
+                    },
+                    {
+                        "id":  "V5",
+                        "reason":  "claim 46 has status VERIFIED; only APPROVED claims are verified"
+                    },
+                    {
+                        "id":  "V9",
+                        "reason":  "claim text not found in corpus"
+                    }
+                ],
+    "byCategory":  {
+                       "mutually-exclusive-single":  {
+                                                         "accuracy":  0.5,
+                                                         "matches":  1,
+                                                         "n":  2
+                                                     },
+                       "temporal-ambiguity":  {
+                                                  "accuracy":  0,
+                                                  "matches":  0,
+                                                  "n":  1
+                                              },
+                       "direct-evidence":  {
+                                               "accuracy":  1,
+                                               "matches":  1,
+                                               "n":  1
+                                           }
+                   },
+    "perItem":  [
+                    {
+                        "id":  "V6",
+                        "evidenceCount":  5,
+                        "latencyMs":  181983,
+                        "match":  true,
+                        "actual":  "SUPPORTED",
+                        "expected":  "SUPPORTED",
+                        "claimId":  34
+                    },
+                    {
+                        "id":  "V7",
+                        "evidenceCount":  5,
+                        "latencyMs":  126474,
+                        "match":  false,
+                        "actual":  "SUPPORTED",
+                        "expected":  "CONTRADICTED",
+                        "claimId":  4
+                    },
+                    {
+                        "id":  "V8",
+                        "evidenceCount":  5,
+                        "latencyMs":  120883,
+                        "match":  true,
+                        "actual":  "CONTRADICTED",
+                        "expected":  "CONTRADICTED",
+                        "claimId":  26
+                    },
+                    {
+                        "id":  "V10",
+                        "evidenceCount":  5,
+                        "latencyMs":  114930,
+                        "match":  false,
+                        "actual":  "CONTRADICTED",
+                        "expected":  "INSUFFICIENT_EVIDENCE",
+                        "claimId":  6
+                    }
+                ],
+    "datasetLimitation":  "Small hand-labelled set against one fictional corpus. Indicates behaviour; does not establish it."
+}

@@ -47,12 +47,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (header == null || !header.startsWith(BEARER)) {
-            chain.doFilter(request, response);
-            return;
+        String token = null;
+        if (header != null && header.startsWith(BEARER)) {
+            token = header.substring(BEARER.length()).trim();
         }
-        String token = header.substring(BEARER.length()).trim();
-        if (token.isEmpty()) {
+        if ((token == null || token.isEmpty()) && isSseStreamRequest(request)) {
+            // The browser EventSource API cannot set request headers, so the
+            // frontend sends the token as an access_token query parameter on
+            // SSE stream endpoints only. Accepted here and nowhere else: the
+            // token is short-lived and the endpoint is read-only.
+            String param = request.getParameter("access_token");
+            if (param != null && !param.isBlank()) {
+                token = param.trim();
+            }
+        }
+        if (token == null || token.isEmpty()) {
             chain.doFilter(request, response);
             return;
         }
@@ -78,6 +87,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } finally {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    /**
+     * SSE stream endpoints are the only requests allowed to authenticate via
+     * query parameter, because EventSource cannot set headers. Matches
+     * {@code GET /api/debates/{id}/stream} exactly so no other endpoint
+     * widens its accepted credential surface.
+     */
+    private static boolean isSseStreamRequest(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String uri = request.getRequestURI();
+        return uri != null && uri.matches("/api/debates/\\d+/stream");
     }
 
     private void writeUnauthorized(HttpServletResponse response, HttpServletRequest request,
