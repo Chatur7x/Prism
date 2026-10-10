@@ -1,0 +1,4 @@
+PRISM TEST DOCUMENT E — Negation, uncertainty, and absent evidence (fictional synthetic data)
+Document ID: NEG-E
+
+Harbor Transit Authority operates Route 7 between Dockside and Hillcrest. Route 7 does not operate on Sundays as of October 2026. Route 9 operates on Sundays. The authority proposed an electric ferry in 2025, but the proposal was not approved. A press note estimated that Route 7 carries approximately 2,000 passengers per weekday; this was an estimate rather than a verified count. The document contains no evidence about ticket prices, route profitability, or the chief executive's educational background.

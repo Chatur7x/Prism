@@ -1,0 +1,5 @@
+PRISM TEST DOCUMENT B — Meridian Research conflicting assertions (fictional synthetic data)
+Document ID: MER-B
+Publication date: 2026-09-02
+
+A second internal memo states that Meridian Research Institute is headquartered in Pune as of September 2026. The memo identifies Dr. Asha Rao as director of Meridian Research Institute in September 2026. It states that Project Aurora's approved budget for fiscal year 2025 was INR 15 million. It also states that the first field pilot occurred in Warangal on 20 August 2025. The memo claims the pilot evaluated 30 sensor nodes. It does not provide supporting measurement logs for the node count. The memo says that Project Aurora uses rainfall sensors and river-level sensors. The memo does not mention satellite imagery.

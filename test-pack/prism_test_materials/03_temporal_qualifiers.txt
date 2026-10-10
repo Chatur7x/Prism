@@ -1,0 +1,4 @@
+PRISM TEST DOCUMENT C — Temporal and qualified facts (fictional synthetic data)
+Document ID: TEMP-C
+
+In 2023, Neel Kapoor was the operations manager of Solstice Labs. On 1 January 2025, Mira Das became operations manager of Solstice Labs, replacing Neel Kapoor. The company had 40 employees in December 2024 and 52 employees in December 2025. Its main office was in Chennai until June 2024; the company moved its main office to Bengaluru in July 2024. These changes describe different dates and must not be treated as simultaneous contradictions. The research team may evaluate battery storage in 2027, but no battery storage project has been approved. The word 'may' indicates possibility, not an established fact.

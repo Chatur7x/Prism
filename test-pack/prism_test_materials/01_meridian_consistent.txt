@@ -1,0 +1,5 @@
+PRISM TEST DOCUMENT A — Meridian Research (fictional synthetic data)
+Document ID: MER-A
+Publication date: 2026-09-01
+
+Meridian Research Institute is headquartered in Hyderabad. Dr. Asha Rao is the director of Meridian Research Institute as of September 2026. Meridian Research Institute launched Project Aurora on 12 March 2025. Project Aurora studies urban flood early-warning systems. The project's approved budget for fiscal year 2025 was INR 12 million. Its lead engineer is Ravi Sen. The project uses rainfall sensors and river-level sensors. The first field pilot took place in Warangal on 20 August 2025. The pilot evaluated 24 sensor nodes. A report issued on 1 September 2026 states that the pilot produced 18 valid alerts. No public evidence in this document establishes that Project Aurora uses satellite imagery.
