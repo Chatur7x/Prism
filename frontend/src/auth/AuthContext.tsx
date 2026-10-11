@@ -93,10 +93,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Proactive refresh: a single attempt when the session is close to expiry.
   // Failure clears via the client's 401 path (or is ignored on network loss),
   // so this never fabricates a session — it only extends a live one.
+  // The visibility/focus hook covers sleep-return: throttled background timers
+  // cannot fire while the device sleeps, so the first foreground moment after
+  // waking is the last chance to refresh a token that is nearly — but not
+  // yet — dead. An already-dead token 401s here and lands on the login page
+  // with the expired-session message, which is the correct outcome.
   useEffect(() => {
     if (!user) return
     let refreshing = false
-    const timer = window.setInterval(() => {
+    const tryRefresh = () => {
       const expiry = getSessionExpiry()
       if (expiry == null || refreshing) return
       if (expiry - Date.now() < REFRESH_THRESHOLD_MS) {
@@ -107,8 +112,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             refreshing = false
           })
       }
-    }, 30_000)
-    return () => window.clearInterval(timer)
+    }
+    const timer = window.setInterval(tryRefresh, 30_000)
+    document.addEventListener('visibilitychange', tryRefresh)
+    window.addEventListener('focus', tryRefresh)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', tryRefresh)
+      window.removeEventListener('focus', tryRefresh)
+    }
   }, [user, refreshToken])
 
   const refresh = useCallback(async () => {
