@@ -11,7 +11,7 @@
  * /glassbox. Role denial redirects to /unauthorized instead of rendering an
  * in-place empty state, so the URL and the UI agree.
  */
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 
 import { AppShell } from './components/AppShell'
@@ -20,6 +20,7 @@ import type { Role } from './api/types'
 import { CorpusProvider } from './corpus/CorpusContext'
 import { BootPage } from './pages/BootPage'
 import { Loading } from './components/ui'
+import { initPointerFx } from './fx/pointer'
 
 // Every page is split out. A reviewer typically uses three or four routes, so
 // bundling the whole pipeline's UI into the entry chunk would make the login
@@ -173,6 +174,8 @@ function NotFound() {
 }
 
 export function App() {
+  // Pointer + scroll effects: one global layer, inert under reduced motion.
+  useEffect(() => initPointerFx(), [])
   return (
     <AuthProvider>
       <Suspense fallback={<Loading label="Loading" />}>

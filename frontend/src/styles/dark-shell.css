@@ -709,6 +709,101 @@
 }
 
 /* ==========================================================================
+   12. POINTER + SCROLL FX (cursor aura, magnetic, spotlight, parallax)
+   ==========================================================================
+   Driven by `fx/pointer.ts`: one rAF loop, transform/opacity only, direct
+   DOM writes, event-delegated. Inert under reduced motion or coarse
+   pointers (the module returns a noop there), so these rules never need
+   their own media fallback — but the smooth-anchor rule below has one. */
+
+.pointer-aura {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+  background: radial-gradient(
+    closest-side,
+    rgba(255, 178, 36, 0.09),
+    rgba(255, 178, 36, 0.03) 55%,
+    transparent 72%
+  );
+  opacity: 0;
+  transition: opacity var(--dur-enter) var(--ease-standard);
+}
+
+.pointer-aura.is-hot {
+  opacity: 1;
+}
+
+/* Magnetic release settles home through this transition; the follow itself
+   is written every pointermove, so the curve reads as trailing weight. */
+[data-magnetic] {
+  transition: transform 0.35s var(--spring-snappy);
+  will-change: transform;
+}
+
+/* Spotlight cards: the cursor position arrives as --mx/--my custom
+   properties; the highlight is a pseudo-element so content never shifts. */
+[data-spotlight] {
+  position: relative;
+}
+
+[data-spotlight]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+  background: radial-gradient(
+    220px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 178, 36, 0.1),
+    transparent 70%
+  );
+}
+
+[data-spotlight]:hover::after {
+  opacity: 1;
+}
+
+/* Scroll progress hairline: scaleX driven by the fx loop. */
+[data-scroll-progress] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: var(--z-nav);
+  background: linear-gradient(90deg, var(--signal), var(--ice));
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  pointer-events: none;
+}
+
+/* Smooth in-page anchors (Pipeline / Council / Glass Box links). */
+.theme-dark {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-dark {
+    scroll-behavior: auto;
+  }
+}
+   - The centred home column wasted ~40% of wide viewports: widen it.
+   - Ribbon nodes stacked vertically while pulses travel horizontally:
+     the conduit is a horizontal flex row of node stops on the track line.
+   - Dashboard sidebar kept the neutral active state: amber edge-light.
+   - Aurora read as flat navy: raise presence, thin the glass so it shows.
+   - Two competing primaries in the home header (blue .primary vs amber
+     signal CTA): the header CTA joins the signal treatment on dark. */
+
+/* ==========================================================================
    11. SELF-CRITIQUE FIXES (screenshot pass, 1920px + 390px)
    ==========================================================================
    - The centred home column wasted ~40% of wide viewports: widen it.

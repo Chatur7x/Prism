@@ -64,17 +64,18 @@ export function HomePage() {
           <a href="#pipeline">Pipeline</a>
           <a href="#council">Council</a>
           <a href="#glassbox">Glass Box</a>
-          <Link to="/login" className="btn sm primary">
+          <Link to="/login" className="btn sm primary" data-magnetic>
             Enter Prism
           </Link>
         </nav>
       </header>
+      <span data-scroll-progress aria-hidden="true" />
 
       <main>
         <section className="home-hero aurora">
           <div className="aurora-blob cobalt" aria-hidden="true" />
           <div className="aurora-blob violet" aria-hidden="true" />
-          <div className="glass materialize">
+          <div className="glass materialize" data-parallax="0.05">
             <p className="home-kicker glass-text">Auditable intelligence analysis</p>
             <h1 className="display-hero glass-text">
               Every answer traceable
@@ -87,7 +88,7 @@ export function HomePage() {
               full audit trail attached to every conclusion.
             </p>
             <div className="btn-row home-ctas">
-              <Link to="/login" className="btn btn-signal">
+              <Link to="/login" className="btn btn-signal" data-magnetic>
                 Enter Prism
               </Link>
               <a href="#pipeline" className="btn">
@@ -95,7 +96,7 @@ export function HomePage() {
               </a>
             </div>
           </div>
-          <div className="home-hero-visual" aria-hidden="true">
+          <div className="home-hero-visual" aria-hidden="true" data-parallax="0.12">
             <div className="ribbon">
               {RIBBON_STAGES.map((stage) => (
                 <span key={stage} className="ribbon-node">
@@ -115,7 +116,7 @@ export function HomePage() {
           <p>Eight stages. Each one observable, each decision attributable.</p>
           <ol className="home-pipeline">
             {PIPELINE.map(([name, blurb], i) => (
-              <li key={name} className={`stagger-${Math.min(i + 1, 8)}`}>
+              <li key={name} className={`stagger-${Math.min(i + 1, 8)}`} data-spotlight>
                 <span className="home-pipeline-index">{String(i + 1).padStart(2, '0')}</span>
                 <strong>{name}</strong>
                 <span className="tiny muted">{blurb}</span>
@@ -159,7 +160,7 @@ export function HomePage() {
           <p>Three personas argue the contradiction. The human chair decides the weight.</p>
           <div className="home-demo home-council" aria-hidden="true">
             {['HAWK', 'DOVE', 'SKEPTIC'].map((p) => (
-              <div key={p} className="home-persona">
+              <div key={p} className="home-persona" data-spotlight>
                 <strong>{p}</strong>
                 <span className="tiny muted">
                   {p === 'SKEPTIC' ? 'Armed with machine evidence' : 'Argues the position'}

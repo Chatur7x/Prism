@@ -131,7 +131,7 @@ export function AuthCard({
           </ul>
         )}
       </div>
-      <button className="btn primary" type="submit" disabled={pending}>
+      <button className="btn primary" type="submit" disabled={pending} data-magnetic>
         {pending ? 'Working…' : mode === 'login' ? 'Sign in' : 'Register'}
       </button>
       <p className="tiny muted" style={{ marginBottom: 0 }}>

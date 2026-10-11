@@ -248,7 +248,7 @@ function CountedStat({
 }) {
   const display = useCountUp(value ?? 0)
   return (
-    <div className="tile-glow" data-status={status}>
+    <div className="tile-glow" data-status={status} data-spotlight>
       <Stat
         label={label}
         value={value == null ? '—' : <span className="stat-tabular">{display}</span>}
