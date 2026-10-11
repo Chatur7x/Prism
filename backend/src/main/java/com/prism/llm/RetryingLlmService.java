@@ -31,6 +31,14 @@ public class RetryingLlmService {
     private final LlmProperties props;
     private final TraceRecorder traces;
 
+    /**
+     * Guards the minimum start-to-start spacing between provider calls. One
+     * lock for the whole service so parallel pipeline threads pace against
+     * each other instead of each bursting independently.
+     */
+    private final Object paceLock = new Object();
+    private long lastCallMillis = 0L;
+
     public RetryingLlmService(LlmClient client, LlmProperties props, TraceRecorder traces) {
         this.client = client;
         this.props = props;
@@ -48,6 +56,7 @@ public class RetryingLlmService {
     public LlmCompletion complete(String system, String user, LlmProperties.Purpose purpose,
                                   String promptVersion, String stepName,
                                   Long traceRunId, TraceStep parentStep) {
+        pace();
         int maxAttempts = Math.max(1, props.maxRetries());
         LlmTransientException lastTransient = null;
 
@@ -122,9 +131,27 @@ public class RetryingLlmService {
                         .build());
     }
 
+    /**
+     * Waits until the minimum start-to-start interval has elapsed since the
+     * previous provider call. A zero interval disables pacing entirely, which
+     * is the default: local and paid-tier deployments keep full parallelism.
+     */
+    private void pace() {
+        long interval = Math.max(0L, props.minIntervalMillis());
+        if (interval <= 0) {
+            return;
+        }
+        synchronized (paceLock) {
+            long wait = lastCallMillis + interval - System.currentTimeMillis();
+            if (wait > 0) {
+                sleep(wait);
+            }
+            lastCallMillis = System.currentTimeMillis();
+        }
+    }
+
     /** Exponential backoff: base * 2^(attempt-1), capped. */
-    long backoffMillis(int attempt) {
-        long base = props.retryBackoffMillis();
+    long backoffMillis(int attempt) {        long base = props.retryBackoffMillis();
         if (base <= 0) {
             return 0;
         }

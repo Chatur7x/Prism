@@ -8,6 +8,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param provider "openai" for any OpenAI-compatible HTTP server (incl. Ollama's
  *                 /v1 endpoint), or "fake" for the explicit offline test mode.
+ * @param retryBackoffMillis base backoff between retry attempts
+ * @param minIntervalMillis minimum spacing between the starts of two separate
+ *                 provider calls (0 disables). A free-tier provider counts
+ *                 tokens per minute across all parallel calls, so a burst of
+ *                 chunk extractions can exhaust the budget faster than retry
+ *                 backoff alone can recover. Pacing spaces calls apart;
+ *                 it never changes what is sent or how responses are read.
  */
 @ConfigurationProperties(prefix = "prism.llm")
 public record LlmProperties(
@@ -24,7 +31,8 @@ public record LlmProperties(
         String synthesisModel,
         String chatModel,
         int maxRetries,
-        long retryBackoffMillis) {
+        long retryBackoffMillis,
+        long minIntervalMillis) {
 
     public enum Purpose {
         EXTRACT, JUDGE, DEBATE, SYNTHESIS, CHAT

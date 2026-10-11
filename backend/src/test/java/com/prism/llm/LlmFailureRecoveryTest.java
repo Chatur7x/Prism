@@ -97,7 +97,7 @@ class LlmFailureRecoveryTest {
     /** 1 ms backoff so the suite is not dominated by sleeping. */
     private static LlmProperties props(int maxRetries) {
         return new LlmProperties("openai", "https://example.invalid/v1", "key",
-                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", maxRetries, 1L);
+                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", maxRetries, 1L, 0L);
     }
 
     private static RetryingLlmService service(LlmClient client, int maxRetries) {
@@ -310,5 +310,42 @@ class LlmFailureRecoveryTest {
                 "JUDGE_V1", "judge:claim:42", null, null))
                 .hasMessageContaining("judge:claim:42")
                 .hasMessageContaining("connection reset by peer");
+    }
+
+    // ---- call pacing ----------------------------------------------------------
+
+    @Test
+    @DisplayName("a configured minimum interval spaces two calls apart")
+    void minIntervalSpacesCallsApart() {
+        LlmProperties paced = new LlmProperties("openai", "https://example.invalid/v1", "key",
+                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", 3, 1L, 200L);
+        RetryingLlmService svc =
+                new RetryingLlmService(new Stub(), paced, mock(TraceRecorder.class));
+
+        long start = System.currentTimeMillis();
+        call(svc, "first");
+        call(svc, "second");
+        long elapsed = System.currentTimeMillis() - start;
+
+        // Tolerant bound: the second call must wait out most of the 200 ms
+        // interval. Timer slop only ever shortens a sleep, never removes it.
+        assertThat(elapsed)
+                .as("the second call must wait for the pacing interval")
+                .isGreaterThanOrEqualTo(150L);
+    }
+
+    @Test
+    @DisplayName("a zero interval keeps full speed")
+    void zeroIntervalDoesNotPace() {
+        RetryingLlmService svc = service(new Stub(), 3);
+
+        long start = System.currentTimeMillis();
+        call(svc, "first");
+        call(svc, "second");
+        long elapsed = System.currentTimeMillis() - start;
+
+        assertThat(elapsed)
+                .as("default pacing is off; two instant calls must stay instant")
+                .isLessThan(5_000L);
     }
 }

@@ -94,6 +94,7 @@ prism:
     chat-model: ${LLM_CHAT_MODEL:qwen2.5:7b}
     max-retries: ${LLM_MAX_RETRIES:3}
     retry-backoff-millis: ${LLM_RETRY_BACKOFF_MS:1000}
+    min-interval-millis: ${LLM_MIN_INTERVAL_MILLIS:0}
   extraction:
     max-triples-per-chunk: ${EXTRACT_MAX_TRIPLES_PER_CHUNK:12}
     max-claims-per-chunk: ${EXTRACT_MAX_CLAIMS_PER_CHUNK:8}

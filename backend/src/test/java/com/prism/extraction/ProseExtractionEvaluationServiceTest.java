@@ -51,7 +51,7 @@ class ProseExtractionEvaluationServiceTest {
 
     private static LlmProperties props(String provider) {
         return new LlmProperties(provider, "https://example.invalid/v1", "key",
-                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", 2, 1L);
+                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", 2, 1L, 0L);
     }
 
     @BeforeAll

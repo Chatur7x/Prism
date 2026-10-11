@@ -53,3 +53,7 @@ services:
         value: openai/gpt-oss-20b
       - key: LLM_TIMEOUT_SECONDS
         value: 300
+      # Free-tier token budgets count per minute across parallel calls: space
+      # chunk extractions ~25s apart so bursts stop burning into 429s.
+      - key: LLM_MIN_INTERVAL_MILLIS
+        value: 25000
