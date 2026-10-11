@@ -4,6 +4,9 @@
  * a visitor will operate inside the app.
  */
 import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+
+import { useReveal } from '../hooks/useReveal'
 
 const PIPELINE = [
   ['Documents', 'Source material in'],
@@ -17,6 +20,21 @@ const PIPELINE = [
 ] as const
 
 export function HomePage() {
+  // Public route renders outside AppShell, so the page owns the document-level
+  // dark scope: body's var-driven background resolves to abyss, painting the
+  // gutters around the centred column. Removed on unmount — light restores.
+  useEffect(() => {
+    document.body.classList.add('theme-dark')
+    return () => document.body.classList.remove('theme-dark')
+  }, [])
+  const revealPipeline = useReveal<HTMLElement>()
+  const revealLattice = useReveal<HTMLElement>()
+  const revealRedline = useReveal<HTMLElement>()
+  const revealCouncil = useReveal<HTMLElement>()
+  const revealGlassbox = useReveal<HTMLElement>()
+  const revealChat = useReveal<HTMLElement>()
+  const revealFinal = useReveal<HTMLElement>()
+
   return (
     <div className="home theme-dark">
       <header className="home-bar">
@@ -35,25 +53,29 @@ export function HomePage() {
       </header>
 
       <main>
-        <section className="home-hero">
-          <p className="home-kicker">Auditable intelligence analysis</p>
-          <h1>
-            Every answer traceable
-            <br />
-            to the evidence behind it.
-          </h1>
-          <p className="home-lede">
-            <strong>Deterministic code owns the record.</strong> Models only propose. A human
-            verifier decides. PRISM turns source documents into checked knowledge — with the
-            full audit trail attached to every conclusion.
-          </p>
-          <div className="btn-row home-ctas">
-            <Link to="/login" className="btn primary">
-              Enter Prism
-            </Link>
-            <a href="#pipeline" className="btn">
-              See how it works
-            </a>
+        <section className="home-hero aurora">
+          <div className="aurora-blob cobalt" aria-hidden="true" />
+          <div className="aurora-blob violet" aria-hidden="true" />
+          <div className="glass materialize">
+            <p className="home-kicker glass-text">Auditable intelligence analysis</p>
+            <h1 className="glass-text">
+              Every answer traceable
+              <br />
+              to the evidence behind it.
+            </h1>
+            <p className="home-lede">
+              <strong>Deterministic code owns the record.</strong> Models only propose. A human
+              verifier decides. PRISM turns source documents into checked knowledge — with the
+              full audit trail attached to every conclusion.
+            </p>
+            <div className="btn-row home-ctas">
+              <Link to="/login" className="btn primary">
+                Enter Prism
+              </Link>
+              <a href="#pipeline" className="btn">
+                See how it works
+              </a>
+            </div>
           </div>
           <div className="home-hero-visual" aria-hidden="true">
             <div className="home-flow">
@@ -67,12 +89,12 @@ export function HomePage() {
           </div>
         </section>
 
-        <section id="pipeline" className="home-section">
+        <section id="pipeline" ref={revealPipeline} className="home-section reveal">
           <h2>The pipeline</h2>
           <p>Eight stages. Each one observable, each decision attributable.</p>
           <ol className="home-pipeline">
             {PIPELINE.map(([name, blurb], i) => (
-              <li key={name}>
+              <li key={name} className={`stagger-${Math.min(i + 1, 8)}`}>
                 <span className="home-pipeline-index">{String(i + 1).padStart(2, '0')}</span>
                 <strong>{name}</strong>
                 <span className="tiny muted">{blurb}</span>
@@ -81,7 +103,7 @@ export function HomePage() {
           </ol>
         </section>
 
-        <section className="home-section">
+        <section ref={revealLattice} className="home-section reveal">
           <h2>Lattice</h2>
           <p>Raw documents become entities and relationships — approved one by one.</p>
           <div className="home-demo home-lattice" aria-hidden="true">
@@ -94,7 +116,7 @@ export function HomePage() {
           <p className="tiny muted">Fictional example. Only approved triples become edges.</p>
         </section>
 
-        <section className="home-section">
+        <section ref={revealRedline} className="home-section reveal">
           <h2>Redline</h2>
           <p>Claim verification with the signals kept separate — never one blended score.</p>
           <div className="home-demo home-redline" aria-hidden="true">
@@ -111,7 +133,7 @@ export function HomePage() {
           </p>
         </section>
 
-        <section id="council" className="home-section">
+        <section id="council" ref={revealCouncil} className="home-section reveal">
           <h2>Council</h2>
           <p>Three personas argue the contradiction. The human chair decides the weight.</p>
           <div className="home-demo home-council" aria-hidden="true">
@@ -132,7 +154,7 @@ export function HomePage() {
           <p className="tiny muted">The chair weights each argument 1–5, then advances or synthesizes.</p>
         </section>
 
-        <section id="glassbox" className="home-section">
+        <section id="glassbox" ref={revealGlassbox} className="home-section reveal">
           <h2>Glass Box</h2>
           <p>Observable execution, replayable. System events — never hidden reasoning.</p>
           <div className="home-demo home-trace" aria-hidden="true">
@@ -148,7 +170,7 @@ export function HomePage() {
           <p className="tiny muted">ENGINE, LLM and HUMAN steps carry inputs, outputs, timings, versions.</p>
         </section>
 
-        <section className="home-section">
+        <section ref={revealChat} className="home-section reveal">
           <h2>Grounded chat</h2>
           <p>Answers cite their passages — or the system refuses instead of inventing.</p>
           <div className="home-demo home-chat" aria-hidden="true">
@@ -161,7 +183,7 @@ export function HomePage() {
           <p className="tiny muted">Fictional example. Refusal is a first-class answer.</p>
         </section>
 
-        <section className="home-section home-final">
+        <section ref={revealFinal} className="home-section home-final reveal">
           <h2>Decide like the record matters.</h2>
           <p>Proposals are cheap. Approval is the product.</p>
           <div className="btn-row home-ctas">
