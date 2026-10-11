@@ -102,9 +102,11 @@ public class IngestionPipeline {
      * run again, and POST /api/documents/{id}/reprocess would answer 200 while
      * doing nothing.
      *
-     * <p>Only a finished job is reset; PENDING/RUNNING/ABANDONED rows mean work
-     * is in flight or needs a human, and the current document is returned
-     * unchanged. Chunking reuses existing chunks and the proposal writer
+     * <p>Only a finished job is reset, with two deliberate exceptions handled
+     * inline: a PENDING row with no worker is adopted (nothing else resubmits
+     * PENDING rows, and the atomic claim keeps a racing submitter honest),
+     * while a RUNNING row means work is genuinely in flight and is left alone.
+     * Chunking reuses existing chunks and the proposal writer
      * collapses duplicate facts by hash, so re-running cannot duplicate
      * proposals — it only appends new extraction runs and quarantine rows.
      */
@@ -117,6 +119,23 @@ public class IngestionPipeline {
                 jobService.findByKey(extractionJobKey(documentId));
         if (existing.isEmpty()) {
             return enqueueExtraction(documentId);
+        }
+        BackgroundJob job = existing.get();
+        if (job.getStatus() == BackgroundJob.Status.PENDING) {
+            // Adopt an orphaned PENDING row: nothing holds it (a live worker
+            // would have claimed it into RUNNING), and no other path resubmits
+            // PENDING rows — recovery only handles stale RUNNING. Resubmitting
+            // is safe under concurrency because claim() is atomic: a second
+            // submitter simply fails to claim and returns.
+            //
+            // Deliberately NOT marking EXTRACTING here: if the executor rejects
+            // the submission below, the document would sit in a transitional
+            // state forever with no worker coming. The worker marks EXTRACTING
+            // itself once it actually claims the job, so a rejected submit
+            // leaves the honest pre-existing status and the next reprocess can
+            // adopt again — never stuck, only delayed.
+            submit(job.getId(), document.getId());
+            return documents.findById(documentId).orElse(document);
         }
         boolean reset = jobService.requeue(existing.get().getId());
         if (!reset) {

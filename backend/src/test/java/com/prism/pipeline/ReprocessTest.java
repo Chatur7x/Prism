@@ -49,6 +49,11 @@ class ReprocessTest {
             job.markUnrecoverable("boom", Instant.now());
         } else if (status == BackgroundJob.Status.RUNNING) {
             job.markRunning(Instant.now());
+        } else if (status == BackgroundJob.Status.ABANDONED) {
+            for (int i = 0; i < 5; i++) {
+                job.markRunning(Instant.now());
+                job.markFailed("boom", Instant.now());
+            }
         }
         assertThat(job.getStatus()).isEqualTo(status);
         return job;
@@ -79,6 +84,15 @@ class ReprocessTest {
     void inFlightIsUntouched() {
         assertThat(jobIn(BackgroundJob.Status.PENDING).requeueForRetry(Instant.now())).isFalse();
         assertThat(jobIn(BackgroundJob.Status.RUNNING).requeueForRetry(Instant.now())).isFalse();
+    }
+
+    @Test
+    @DisplayName("an ABANDONED job resets on explicit operator reprocess")
+    void abandonedResets() {
+        BackgroundJob job = jobIn(BackgroundJob.Status.ABANDONED);
+
+        assertThat(job.requeueForRetry(Instant.now())).isTrue();
+        assertThat(job.getStatus()).isEqualTo(BackgroundJob.Status.PENDING);
     }
 
     // ---- reprocessDocument ----------------------------------------------------
@@ -122,8 +136,7 @@ class ReprocessTest {
 
     @Test
     @DisplayName("reprocess while running submits nothing and changes nothing")
-    void reprocessWhileRunningIsHonestNoOp() {
-        BackgroundJobService jobs = mock(BackgroundJobService.class);
+    void reprocessWhileRunningIsHonestNoOp() {        BackgroundJobService jobs = mock(BackgroundJobService.class);
         when(jobs.findByKey("extract:document:63"))
                 .thenReturn(Optional.of(jobIn(BackgroundJob.Status.RUNNING)));
         when(jobs.requeue(any())).thenReturn(false);
@@ -155,5 +168,54 @@ class ReprocessTest {
         pipeline.reprocessDocument(63L);
 
         verify(executor).execute(any(Runnable.class));
+    }
+
+    @Test
+    @DisplayName("reprocess adopts an orphaned PENDING job without touching status")
+    void reprocessAdoptsOrphanedPending() {
+        BackgroundJobService jobs = mock(BackgroundJobService.class);
+        when(jobs.findByKey("extract:document:63"))
+                .thenReturn(Optional.of(jobIn(BackgroundJob.Status.PENDING)));
+        ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
+        DocumentService documentService = mock(DocumentService.class);
+        DocumentRepository documents = mock(DocumentRepository.class);
+        Document doc = document();
+        when(documents.findById(63L)).thenReturn(Optional.of(doc));
+        IngestionPipeline pipeline = new IngestionPipeline(jobs, documents, documentService,
+                mock(ExtractionService.class), mock(TraceRecorder.class), executor);
+
+        Document returned = pipeline.reprocessDocument(63L);
+
+        assertThat(returned).isSameAs(doc);
+        verify(executor).execute(any(Runnable.class));
+        // No reset needed: the row is already PENDING, so requeue must not run.
+        verify(jobs, never()).requeue(any());
+        // The worker marks EXTRACTING on claim; marking it here would leave
+        // the document transitional forever if the executor rejects below.
+        verify(documentService, never()).setStatus(eq(63L), any(DocumentStatus.class));
+    }
+
+    @Test
+    @DisplayName("a rejected executor submission leaves the document status honest")
+    void rejectedSubmitLeavesStatusHonest() {
+        BackgroundJobService jobs = mock(BackgroundJobService.class);
+        when(jobs.findByKey("extract:document:63"))
+                .thenReturn(Optional.of(jobIn(BackgroundJob.Status.PENDING)));
+        ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
+        org.mockito.stubbing.Answer<?> reject = inv -> {
+            throw new java.util.concurrent.RejectedExecutionException("full");
+        };
+        org.mockito.Mockito.doAnswer(reject).when(executor).execute(any(Runnable.class));
+        DocumentService documentService = mock(DocumentService.class);
+        DocumentRepository documents = mock(DocumentRepository.class);
+        Document doc = document();
+        when(documents.findById(63L)).thenReturn(Optional.of(doc));
+        IngestionPipeline pipeline = new IngestionPipeline(jobs, documents, documentService,
+                mock(ExtractionService.class), mock(TraceRecorder.class), executor);
+
+        Document returned = pipeline.reprocessDocument(63L);
+
+        assertThat(returned).isSameAs(doc);
+        verify(documentService, never()).setStatus(eq(63L), any(DocumentStatus.class));
     }
 }

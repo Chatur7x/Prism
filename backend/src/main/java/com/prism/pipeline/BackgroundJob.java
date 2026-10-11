@@ -144,16 +144,22 @@ public class BackgroundJob {
 
     /**
      * Returns a finished job to PENDING so an operator-triggered reprocess can
-     * run again. Only SUCCEEDED and FAILED rows qualify: PENDING/RUNNING work
-     * is genuinely in flight, and ABANDONED needs human intervention, not a
-     * silent reset. Attempt history is preserved — claim() keeps counting —
-     * and extraction runs/quarantine rows are append-only elsewhere, so no
-     * audit record is rewritten by re-running.
+     * run again. SUCCEEDED and FAILED rows finished their work; ABANDONED rows
+     * are terminal-by-design and wait for a human — and an explicit operator
+     * reprocess IS that human intervention, so it qualifies too. PENDING and
+     * RUNNING rows are genuinely in flight and must never be reset here.
+     * Only {@link #reprocessDocument}-style explicit operator paths may call
+     * this; automatic recovery must leave ABANDONED rows alone.
+     *
+     * <p>Attempt history is preserved — claim() keeps counting — and
+     * extraction runs/quarantine rows are append-only elsewhere, so no audit
+     * record is rewritten by re-running.
      *
      * @return true when the row was reset and may now be claimed again
      */
     public boolean requeueForRetry(Instant now) {
-        if (status != Status.SUCCEEDED && status != Status.FAILED) {
+        if (status != Status.SUCCEEDED && status != Status.FAILED
+                && status != Status.ABANDONED) {
             return false;
         }
         this.status = Status.PENDING;

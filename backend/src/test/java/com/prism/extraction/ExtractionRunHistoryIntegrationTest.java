@@ -74,6 +74,12 @@ class ExtractionRunHistoryIntegrationTest {
     @Autowired
     ExtractionPersistenceService persistence;
     @Autowired
+    com.prism.pipeline.BackgroundJobService jobService;
+    @Autowired
+    com.prism.pipeline.BackgroundJobRepository backgroundJobs;
+    @Autowired
+    com.prism.pipeline.RecoveryService recovery;
+    @Autowired
     ExtractionRunRepository runs;
     @Autowired
     ExtractionQuarantineRepository quarantines;
@@ -174,15 +180,79 @@ class ExtractionRunHistoryIntegrationTest {
 
     @Test
     @DisplayName("a second run while one is active is refused, not constraint-crashed")
-    void activeRunBlocksSecondStart() {
-        startRun("EXTRACT_V2");
+    void activeRunBlocksSecondStart() {        startRun("EXTRACT_V2");
 
         assertThatThrownBy(() -> startRun("EXTRACT_V2"))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("already has an active extraction run");
+
+        long pending = runs.findAll().stream()
+                .filter(r -> r.getDocument().getId().equals(document.getId()))
+                .count();
+        assertThat(pending)
+                .as("the refused start must not leave a second run row behind")
+                .isEqualTo(1);
     }
 
     // ---- audit preservation -----------------------------------------------------
+
+    @Test
+    @DisplayName("two simultaneous claims elect exactly one worker")
+    void concurrentClaimsElectOneWorker() throws Exception {
+        com.prism.pipeline.BackgroundJob job = new com.prism.pipeline.BackgroundJob(
+                "race-" + tag, com.prism.pipeline.BackgroundJob.Type.EXTRACTION,
+                corpus, document, null, 5);
+        final Long jobId = backgroundJobs.saveAndFlush(job).getId();
+
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger wins = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.List<Thread> threads = new java.util.ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            Thread t = new Thread(() -> {
+                ready.countDown();
+                try {
+                    go.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                    if (jobService.claim(jobId).claimed()) {
+                        wins.incrementAndGet();
+                    }
+                } catch (Exception e) {
+                    // Lost update / lock timeout counts as losing, never as winning.
+                }
+            });
+            threads.add(t);
+            t.start();
+        }
+        ready.await(10, java.util.concurrent.TimeUnit.SECONDS);
+        go.countDown();
+        for (Thread t : threads) {
+            t.join(30_000);
+        }
+
+        assertThat(wins.get())
+                .as("two simultaneous reprocesses must not create two active workers")
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("automatic recovery never touches ABANDONED jobs")
+    void recoveryLeavesAbandonedAlone() {
+        com.prism.pipeline.BackgroundJob job = new com.prism.pipeline.BackgroundJob(
+                "abandoned-" + tag, com.prism.pipeline.BackgroundJob.Type.EXTRACTION,
+                corpus, document, null, 1);
+        job.markRunning(java.time.Instant.now());
+        job.markFailed("boom", java.time.Instant.now());
+        backgroundJobs.saveAndFlush(job);
+        assertThat(job.getStatus()).isEqualTo(com.prism.pipeline.BackgroundJob.Status.ABANDONED);
+
+        recovery.requeueStaleJobs();
+
+        com.prism.pipeline.BackgroundJob reloaded =
+                backgroundJobs.findById(job.getId()).orElseThrow();
+        assertThat(reloaded.getStatus())
+                .as("ABANDONED waits for an explicit operator reprocess, not automation")
+                .isEqualTo(com.prism.pipeline.BackgroundJob.Status.ABANDONED);
+    }
 
     @Test
     @DisplayName("V1 and V2 quarantine rows stay attached to their own runs")
