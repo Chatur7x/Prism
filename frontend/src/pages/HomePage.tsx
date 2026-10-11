@@ -219,24 +219,48 @@ export function HomePage() {
         delay: 0.3,
       })
 
-      // (2) Pinned story: one continuous filmstrip. The viewport takes the
-      // locking height only here, so the fallback stays a normal stacked flow.
+      // (2) Pinned story: stacked crossfade. Beats are absolutely stacked in
+      // a fullscreen viewport and the timeline fades/slides each one in,
+      // holds, and out — so the viewport always shows exactly one full beat:
+      // no voids, no clipped cards. The section header scrolls away first
+      // (the viewport itself is the pin trigger), freeing the full height.
       const viewport = root.querySelector<HTMLElement>('[data-story-viewport]')
-      const track = root.querySelector<HTMLElement>('[data-story-track]')
-      if (viewport && track) {
-        gsap.set(viewport, { height: '100vh', overflow: 'hidden' })
-        const distance = () => Math.max(0, track.scrollHeight - viewport.clientHeight)
-        gsap.to(track, {
-          y: () => -distance(),
-          ease: 'none',
+      const beats = root.querySelectorAll<HTMLElement>('[data-story-viewport] [data-beat]')
+      if (viewport && beats.length > 0) {
+        const list = Array.from(beats)
+        gsap.set(viewport, { height: '100vh', overflow: 'hidden', position: 'relative' })
+        gsap.set(list, {
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          autoAlpha: 0,
+        })
+        const first = list[0]
+        if (!first) return
+        gsap.set(first, { autoAlpha: 1 })
+        const tl = gsap.timeline({
           scrollTrigger: {
-            trigger: '[data-story]',
+            trigger: viewport,
             start: 'top top',
-            end: () => `+=${distance()}`,
+            end: () => `+=${list.length * window.innerHeight}`,
             pin: true,
             scrub: 1,
             invalidateOnRefresh: true,
           },
+        })
+        list.forEach((beat, i) => {
+          if (i > 0) {
+            tl.fromTo(
+              beat,
+              { autoAlpha: 0, y: 40 },
+              { autoAlpha: 1, y: 0, duration: 1, immediateRender: false },
+            )
+          }
+          if (i < list.length - 1) {
+            tl.to(beat, { autoAlpha: 0, y: -40, duration: 1 }, '+=0.5')
+          }
         })
       }
     }, root)
@@ -338,15 +362,16 @@ export function HomePage() {
             </p>
           </div>
           <div data-story-viewport>
-            <div data-story-track className="zoom-layer">
+            <div data-story-track>
               {STORY_BEATS.map((beat) => (
                 <div
                   key={beat.index}
+                  data-beat
                   style={{
-                    minHeight: '100vh',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
+                    paddingBlock: 'var(--space-6)',
                   }}
                 >
                   <div className="section-shell glass-strong" data-spotlight style={{ padding: 'var(--space-7)' }}>
