@@ -69,6 +69,9 @@ export const authApi = {
       method: 'POST',
       anonymous: true,
       body: { username, password },
+      // A sleeping free-tier backend needs ~60-80s to cold-start; the 30s
+      // default would report a timeout for a server that is waking, not dead.
+      timeoutMs: 120_000,
     }),
 
   me: () => request<AuthUser>('/api/auth/me'),
