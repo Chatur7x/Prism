@@ -384,7 +384,7 @@ function ArgumentCard({
     setIsDirty(value !== initialWeight)
   }
   return (
-    <div className={`argument persona-${argument.persona.toLowerCase()}`}>
+    <div className={`argument persona-${argument.persona.toLowerCase()} argument-enter`}>
       <div className="argument-head">
         <span className={`badge ${PERSONA_TONE[argument.persona] ?? 'neutral'}`}>
           {PERSONA_LABEL[argument.persona] ?? argument.persona}
@@ -431,33 +431,56 @@ function ArgumentCard({
       )}
 
       {argument.chairWeight != null && (
-        <div className="tiny muted">
-          Chair weight {argument.chairWeight}
-          {argument.weightedBy && ` by ${argument.weightedBy}`}
-        </div>
+        <>
+          <div className="tiny muted">
+            Chair weight {argument.chairWeight}
+            {argument.weightedBy && ` by ${argument.weightedBy}`}
+          </div>
+          <WeightBar value={argument.chairWeight} />
+        </>
       )}
 
       {chairable && !argument.failed && (
-        <div className="row" style={{ marginTop: 8 }}>
-          <label className="field-label" htmlFor={`w-${argument.id}`}>
-            Chair weight (1 weakest – 5 strongest)
-          </label>
-          <input
-            id={`w-${argument.id}`}
-            type="range"
-            min={1}
-            max={5}
-            step={1}
-            value={draftWeight}
-            onChange={(e) => handleWeightChange(Number(e.target.value))}
-            style={{ flex: 1 }}
-          />
-          <span className="badge neutral">{draftWeight}</span>
-          <button className="btn sm" onClick={onSubmit} disabled={pending || !isDirty}>
-            Record
-          </button>
+        <div style={{ marginTop: 8 }}>
+          <div className="row">
+            <label className="field-label" htmlFor={`w-${argument.id}`}>
+              Chair weight (1 weakest – 5 strongest)
+            </label>
+            <input
+              id={`w-${argument.id}`}
+              type="range"
+              min={1}
+              max={5}
+              step={1}
+              value={draftWeight}
+              onChange={(e) => handleWeightChange(Number(e.target.value))}
+              style={{ flex: 1 }}
+            />
+            <span className="badge neutral">{draftWeight}</span>
+            <button className="btn sm" onClick={onSubmit} disabled={pending || !isDirty}>
+              Record
+            </button>
+          </div>
+          <WeightBar value={draftWeight} label={`Draft chair weight ${draftWeight} of 5`} />
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Chair-weight bar (Plan D motion upgrade).
+ *
+ * Width is read from real weight state (1–5) set inline by the caller; the
+ * stylesheet animates width on `--dur-enter`, so slider drags glide while a
+ * recorded weight simply renders. Decorative next to its numeric label, which
+ * is why the track carries the accessible name.
+ */
+function WeightBar({ value, max = 5, label }: { value: number; max?: number; label?: string }) {
+  const percent = Math.max(0, Math.min(100, (value / max) * 100))
+  return (
+    <div className="weight-bar" role="img" aria-label={label ?? `Chair weight ${value} of ${max}`}>
+      <div className="weight-bar-fill" style={{ width: `${percent}%` }} />
     </div>
   )
 }

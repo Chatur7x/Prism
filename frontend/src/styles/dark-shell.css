@@ -419,3 +419,106 @@
     overflow: clip;
   }
 }
+
+/* ==========================================================================
+   9. LIGHT-SAFE MOTION UPGRADES (Plan D — graph, debate, chat)
+   ==========================================================================
+   Unscoped by design: these classes are theme-neutral (token-driven) and safe
+   on light routes. Transform/opacity/width-transition only; every loop or
+   transition has a `prefers-reduced-motion` guard at the end of this section.
+   Nothing here restyles components — hover lifts report a real interaction,
+   the typing dots mark genuinely-pending state, and the weight bar reads its
+   width from real backend state set inline by the component. */
+
+.citation-lift {
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.citation-lift:hover {
+  transform: translateY(-1px);
+}
+
+/* Three-dot pending indicator: opacity pulse only (transform-free), so it
+   never shifts layout while the answer streams in. */
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-2) 0;
+  color: var(--ink-2);
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.25;
+  animation: typing-pulse 1.2s var(--ease-standard) infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Chair-weight bar: width is set inline from the recorded or draft weight
+   (1–5); the transition on --dur-enter animates slider drags. */
+.weight-bar {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+  margin-top: var(--space-2);
+}
+
+.weight-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-enter) var(--ease-enter);
+}
+
+/* Graph legend hover: a 1px settle reporting that the swatch is there, never
+   a re-layout of the canvas chrome. */
+.legend-swatch {
+  display: inline-flex;
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.legend-swatch:hover {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Pending dots go static but stay legible — "thinking" must survive. */
+  .typing-dots span {
+    animation: none;
+    opacity: 0.7;
+  }
+
+  .weight-bar-fill,
+  .citation-lift,
+  .legend-swatch {
+    transition: none;
+  }
+
+  .citation-lift:hover,
+  .legend-swatch:hover {
+    transform: none;
+  }
+}

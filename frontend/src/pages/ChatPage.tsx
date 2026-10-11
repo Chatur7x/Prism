@@ -23,6 +23,7 @@ import { Link } from 'react-router-dom'
 import { chatApi } from '../api/endpoints'
 import { useCorpus } from '../corpus/CorpusContext'
 import type { ChatMessage, ChatSession } from '../api/types'
+import { useReveal } from '../hooks/useReveal'
 import {
   Alert,
   Card,
@@ -41,6 +42,9 @@ export function ChatPage() {
   const [question, setQuestion] = useState('')
   const [title, setTitle] = useState('')
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  // Below-fold entrance for the grounding note; fires once, never hides
+  // content (final state renders when IntersectionObserver is unavailable).
+  const revealRef = useReveal<HTMLDivElement>()
 
   const sessions = useAsync(
     () => (selected ? chatApi.sessions() : Promise.resolve([])),
@@ -159,7 +163,7 @@ export function ChatPage() {
           ) : (
             <>
               <Card title="Conversation" flush>
-                <div className="chat-log">
+                <div className="chat-log scroll-edge-top scroll-edge-bottom">
                   {history.loading && <Loading />}
                   {!history.loading && messages.length === 0 && (
                     <Empty title="No messages yet">
@@ -170,6 +174,15 @@ export function ChatPage() {
                   {messages.map((message: ChatMessage) => (
                     <MessageBubble key={message.id} message={message} />
                   ))}
+                  {ask.pending && (
+                    <div className="chat-msg from-assistant" role="status" aria-label="PRISM is thinking">
+                      <div className="typing-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    </div>
+                  )}
                   <div ref={bottomRef} />
                 </div>
 
@@ -200,13 +213,15 @@ export function ChatPage() {
 
               {ask.error != null && <ErrorState error={ask.error} />}
 
-              <Alert kind="info">
-                <strong>How grounding is enforced.</strong> The model is given only retrieved
-                passages and approved triples from this corpus, and every citation it returns is
-                checked against the ids it was actually given. A response citing anything else is
-                discarded rather than shown. See <code className="inline">ChatService</code> for the
-                four enforcement points.
-              </Alert>
+              <div ref={revealRef} className="reveal">
+                <Alert kind="info">
+                  <strong>How grounding is enforced.</strong> The model is given only retrieved
+                  passages and approved triples from this corpus, and every citation it returns is
+                  checked against the ids it was actually given. A response citing anything else is
+                  discarded rather than shown. See <code className="inline">ChatService</code> for the
+                  four enforcement points.
+                </Alert>
+              </div>
             </>
           )}
         </div>
@@ -259,7 +274,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           {showCitations && (
             <div className="citations">
               {message.citations.map((citation) => (
-                <div className="quote tiny" key={`${citation.kind}-${citation.chunkId}`}>
+                <div className="quote tiny citation-lift" key={`${citation.kind}-${citation.chunkId}`}>
                   {citation.excerpt}
                   <div className="tiny muted">
                     {citation.documentTitle} · chunk {citation.chunkId}

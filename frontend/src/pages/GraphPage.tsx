@@ -33,6 +33,7 @@ import {
   useAsync,
 } from '../components/ui'
 import { useCorpus } from '../corpus/CorpusContext'
+import { useCountUp } from '../hooks/useCountUp'
 
 /** Direction of an edge relative to the entity being inspected. */
 interface Neighbour {
@@ -96,6 +97,12 @@ export function GraphPage() {
   const g = graph.data
   const top = (pagerank.data ?? []).slice(0, 15)
   const comms = communities.data ?? []
+
+  // Animated node/edge totals (Plan D motion upgrade). Display-only: the hook
+  // renders the exact formatted target on its final frame (instantly under
+  // reduced motion), so the numbers never disagree with the record.
+  const nodeCountText = useCountUp(g?.stats.nodeCount ?? 0)
+  const edgeCountText = useCountUp(g?.stats.edgeCount ?? 0)
 
   // Edges reference nodes by id. Resolving the names here rather than shipping
   // duplicated text keeps one source of truth for an entity's display name, and
@@ -242,8 +249,8 @@ export function GraphPage() {
       {g !== null && (
         <>
           <div className="grid cols-4" style={{ marginBottom: 'var(--space-4)' }}>
-            <Stat label="Nodes" value={g.stats.nodeCount} />
-            <Stat label="Edges" value={g.stats.edgeCount} accent />
+            <Stat label="Nodes" value={nodeCountText} />
+            <Stat label="Edges" value={edgeCountText} accent />
             <Stat label="Density" value={g.stats.density.toFixed(4)} />
             <Stat label="Communities" value={comms.length} hint="label propagation" />
           </div>
@@ -274,7 +281,9 @@ export function GraphPage() {
 
               <div className="row">
                 <span className="tiny muted">Trust shown:</span>
-                <ConfidenceBadge state="SINGLE_SOURCE" />
+                <span className="legend-swatch">
+                  <ConfidenceBadge state="SINGLE_SOURCE" />
+                </span>
                 <span className="tiny muted">on every node</span>
               </div>
 
