@@ -51,6 +51,24 @@ public class BackgroundJobService {
     }
 
     /**
+     * Resets a finished job row to PENDING for an operator-triggered reprocess.
+     * Returns false when there is nothing to reset (no row, or genuinely busy
+     * PENDING/RUNNING/ABANDONED work), in which case the caller must not submit.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean requeue(Long jobId) {
+        BackgroundJob job = jobs.findById(jobId).orElse(null);
+        if (job == null) {
+            return false;
+        }
+        boolean reset = job.requeueForRetry(Instant.now());
+        if (reset) {
+            jobs.saveAndFlush(job);
+        }
+        return reset;
+    }
+
+    /**
      * Finds the job for this key, creating it in PENDING if absent.
      *
      * <p>Idempotent by construction: the unique index on {@code job_key} means a

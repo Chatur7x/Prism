@@ -78,7 +78,7 @@ public class ProposalWriter {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Persisted write(Long runId, Document document, DocumentChunk chunk,
                            ExtractionDtos.ExtractionResultDto result,
-                           List<ResolvedEndpoints> endpoints) {
+                           List<ResolvedEndpoints> endpoints, String promptVersion) {
         Long corpusId = document.getCorpus().getId();
         User proposer = users.getById(document.getUploader().getId());
         int tripleCount = 0;
@@ -114,7 +114,7 @@ public class ProposalWriter {
             Entity object = entityResolution.reference(resolved.objectId());
             Triple triple = new Triple(document.getCorpus(), subject, dto.subject(), dto.predicate(),
                     object, dto.object(), dto.sentence(), chunk, proposer,
-                    Prompts.EXTRACT_V1, runId, factKey, factHash);
+                    promptVersion, runId, factKey, factHash);
             triples.save(triple);
             tripleCount++;
         }
@@ -129,7 +129,7 @@ public class ProposalWriter {
             Claim claim = new Claim(document.getCorpus(), dto.subject(), dto.claim(),
                     ClaimPolarity.valueOf(dto.polarity().name()),
                     null, null, dto.sentence(), chunk, proposer,
-                    Prompts.EXTRACT_V1, runId, claimKey, claimHash);
+                    promptVersion, runId, claimKey, claimHash);
             claims.save(claim);
             claimCount++;
         }

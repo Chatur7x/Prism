@@ -94,6 +94,39 @@ public class IngestionPipeline {
         return document;
     }
 
+    /**
+     * Operator-triggered re-run of extraction for a document whose pipeline
+     * already finished — the case {@link #enqueueExtraction} deliberately
+     * refuses: a SUCCEEDED job with an AWAITING_APPROVAL document whose run
+     * produced zero proposals (all chunks quarantined) would otherwise never
+     * run again, and POST /api/documents/{id}/reprocess would answer 200 while
+     * doing nothing.
+     *
+     * <p>Only a finished job is reset; PENDING/RUNNING/ABANDONED rows mean work
+     * is in flight or needs a human, and the current document is returned
+     * unchanged. Chunking reuses existing chunks and the proposal writer
+     * collapses duplicate facts by hash, so re-running cannot duplicate
+     * proposals — it only appends new extraction runs and quarantine rows.
+     */
+    public Document reprocessDocument(Long documentId) {
+        Document document = documents.findById(documentId)
+                .orElseThrow(() -> com.prism.common.error.ApiException
+                        .notFound("Document", documentId));
+
+        java.util.Optional<BackgroundJob> existing =
+                jobService.findByKey(extractionJobKey(documentId));
+        if (existing.isEmpty()) {
+            return enqueueExtraction(documentId);
+        }
+        boolean reset = jobService.requeue(existing.get().getId());
+        if (!reset) {
+            return document;
+        }
+        documentService.setStatus(documentId, DocumentStatus.EXTRACTING);
+        submit(existing.get().getId(), document.getId());
+        return documents.findById(documentId).orElse(document);
+    }
+
     private void submit(Long jobId, Long documentId) {
         try {
             executor.execute(() -> runJob(jobId, documentId));

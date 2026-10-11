@@ -88,7 +88,8 @@ public class ExtractionPersistenceService {
      * killed most jobs with {@code Lock wait timeout exceeded}.
      */
     public ProposalWriter.Persisted persistProposals(Long runId, Document document, DocumentChunk chunk,
-                                                     ExtractionDtos.ExtractionResultDto result) {
+                                                     ExtractionDtos.ExtractionResultDto result,
+                                                     String promptVersion) {
         Long corpusId = document.getCorpus().getId();
         Long chunkId = chunk.getId();
 
@@ -107,7 +108,7 @@ public class ExtractionPersistenceService {
             }
         }
 
-        return writer.write(runId, document, chunk, result, endpoints);
+        return writer.write(runId, document, chunk, result, endpoints, promptVersion);
     }
 
     /** Records a rejected model response so the failure remains auditable. */

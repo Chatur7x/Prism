@@ -234,7 +234,8 @@ public class ExtractionService {
         // Re-attach the managed run so the FK is valid after the async boundary.
         ExtractionRun managed = runs.findById(run.getId()).orElseThrow();
         ProposalWriter.Persisted persisted =
-                persistence.persistProposals(managed.getId(), document, chunk, outcome.result());
+                persistence.persistProposals(managed.getId(), document, chunk, outcome.result(),
+                        managed.getPromptVersion());
 
         traces.record(traceRunId, parent, ActorType.ENGINE, TraceEventType.JSON_PARSED,
                 "Extraction response accepted",

@@ -142,6 +142,28 @@ public class BackgroundJob {
         return true;
     }
 
+    /**
+     * Returns a finished job to PENDING so an operator-triggered reprocess can
+     * run again. Only SUCCEEDED and FAILED rows qualify: PENDING/RUNNING work
+     * is genuinely in flight, and ABANDONED needs human intervention, not a
+     * silent reset. Attempt history is preserved — claim() keeps counting —
+     * and extraction runs/quarantine rows are append-only elsewhere, so no
+     * audit record is rewritten by re-running.
+     *
+     * @return true when the row was reset and may now be claimed again
+     */
+    public boolean requeueForRetry(Instant now) {
+        if (status != Status.SUCCEEDED && status != Status.FAILED) {
+            return false;
+        }
+        this.status = Status.PENDING;
+        this.startedAt = null;
+        this.finishedAt = null;
+        this.heartbeatAt = now;
+        this.updatedAt = now;
+        return true;
+    }
+
     public void heartbeat(Instant now) {
         this.heartbeatAt = now;
         this.updatedAt = now;

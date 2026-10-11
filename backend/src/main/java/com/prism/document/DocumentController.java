@@ -241,7 +241,7 @@ public class DocumentController {
     public DocumentResponse reprocess(@PathVariable Long id) {
         Long userId = access.requireCurrentUserId();
         documents.get(userId, id);
-        Document queued = pipeline.enqueueExtraction(id);
+        Document queued = pipeline.reprocessDocument(id);
         return DocumentResponse.from(queued);
     }
 
