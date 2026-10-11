@@ -149,18 +149,31 @@ export function DashboardPage() {
           )}
 
           <div ref={revealStats} className="grid cols-4 reveal">
-            <CountedStat label="Documents" value={data.documents} />
-            <Stat
-              label="Pending approvals"
-              value={
-                data.pendingTriples != null || data.pendingClaims != null
-                  ? `${data.pendingTriples ?? '—'} triples · ${data.pendingClaims ?? '—'} claims`
-                  : '—'
+            <CountedStat label="Documents" value={data.documents} status="info" />
+            <div
+              className="tile-glow"
+              data-status={
+                (data.pendingTriples ?? 0) + (data.pendingClaims ?? 0) > 0 ? 'action' : 'neutral'
               }
-              hint={canVerify ? undefined : 'Verifier only'}
+            >
+              <Stat
+                label="Pending approvals"
+                value={
+                  <span className="stat-tabular">
+                    {data.pendingTriples != null || data.pendingClaims != null
+                      ? `${data.pendingTriples ?? '—'} triples · ${data.pendingClaims ?? '—'} claims`
+                      : '—'}
+                  </span>
+                }
+                hint={canVerify ? undefined : 'Verifier only'}
+              />
+            </div>
+            <CountedStat
+              label="Open contradictions"
+              value={data.openContradictions}
+              status={(data.openContradictions ?? 0) > 0 ? 'action' : 'neutral'}
             />
-            <CountedStat label="Open contradictions" value={data.openContradictions} />
-            <CountedStat label="Glass Box traces" value={data.recentTraces} />
+            <CountedStat label="Glass Box traces" value={data.recentTraces} status="info" />
           </div>
 
           <div ref={revealCards} className="grid cols-2 reveal">
@@ -189,10 +202,14 @@ export function DashboardPage() {
             <Card title="Pipeline">
               {data.statistics ? (
                 <div className="stack">
-                  <CountedStat label="Triples" value={data.statistics.triples} />
-                  <CountedStat label="Claims" value={data.statistics.claims} />
-                  <CountedStat label="Verdicts" value={data.statistics.verdicts} />
-                  <CountedStat label="Quarantined" value={data.statistics.quarantined} />
+                  <CountedStat label="Triples" value={data.statistics.triples} status="info" />
+                  <CountedStat label="Claims" value={data.statistics.claims} status="info" />
+                  <CountedStat label="Verdicts" value={data.statistics.verdicts} status="info" />
+                  <CountedStat
+                    label="Quarantined"
+                    value={data.statistics.quarantined}
+                    status={(data.statistics.quarantined ?? 0) > 0 ? 'action' : 'neutral'}
+                  />
                 </div>
               ) : (
                 <Empty title={canVerify ? 'No statistics yet' : 'Degraded by role'}>
@@ -213,8 +230,30 @@ export function DashboardPage() {
  * A `Stat` whose numeric value counts up from zero on arrival and settles on
  * the exact fetched number. Missing values render the same '—' placeholder
  * as before; the hook runs unconditionally so hook order stays stable.
+ *
+ * Verification-console identity (§9): the tile carries `.tile-glow` with a
+ * `data-status` variant (`action` | `info` | `neutral`, glow via box-shadow
+ * in CSS), and the animated number carries `.stat-tabular`.
  */
-function CountedStat({ label, value, hint }: { label: string; value: number | null; hint?: ReactNode }) {
+function CountedStat({
+  label,
+  value,
+  hint,
+  status = 'neutral',
+}: {
+  label: string
+  value: number | null
+  hint?: ReactNode
+  status?: 'action' | 'info' | 'neutral'
+}) {
   const display = useCountUp(value ?? 0)
-  return <Stat label={label} value={value == null ? '—' : display} hint={hint} />
+  return (
+    <div className="tile-glow" data-status={status}>
+      <Stat
+        label={label}
+        value={value == null ? '—' : <span className="stat-tabular">{display}</span>}
+        hint={hint}
+      />
+    </div>
+  )
 }

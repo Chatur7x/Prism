@@ -19,6 +19,24 @@ const PIPELINE = [
   ['Glass Box', 'Replay anything'],
 ] as const
 
+/**
+ * Verification-console ribbon nodes (§9): the 8 pipeline stage names above
+ * plus the two verdict-moment surfaces already named in page/spec copy
+ * (grounded chat, verdict). Decorative only — aria-hidden at the usage site.
+ */
+const RIBBON_STAGES = [
+  'Documents',
+  'Extraction',
+  'Knowledge',
+  'Verification',
+  'Contradictions',
+  'Council',
+  'Synthesis',
+  'Glass Box',
+  'Chat',
+  'Verdict',
+] as const
+
 export function HomePage() {
   // Public route renders outside AppShell, so the page owns the document-level
   // dark scope: body's var-driven background resolves to abyss, painting the
@@ -58,7 +76,7 @@ export function HomePage() {
           <div className="aurora-blob violet" aria-hidden="true" />
           <div className="glass materialize">
             <p className="home-kicker glass-text">Auditable intelligence analysis</p>
-            <h1 className="glass-text">
+            <h1 className="display-hero glass-text">
               Every answer traceable
               <br />
               to the evidence behind it.
@@ -69,7 +87,7 @@ export function HomePage() {
               full audit trail attached to every conclusion.
             </p>
             <div className="btn-row home-ctas">
-              <Link to="/login" className="btn primary">
+              <Link to="/login" className="btn btn-signal">
                 Enter Prism
               </Link>
               <a href="#pipeline" className="btn">
@@ -78,12 +96,15 @@ export function HomePage() {
             </div>
           </div>
           <div className="home-hero-visual" aria-hidden="true">
-            <div className="home-flow">
-              {['SOURCE', 'RECORD', 'VERIFY', 'ANALYZE', 'DECIDE', 'USE'].map((stage, i) => (
-                <span key={stage} className="home-flow-node" style={{ animationDelay: `${i * 120}ms` }}>
+            <div className="ribbon">
+              {RIBBON_STAGES.map((stage) => (
+                <span key={stage} className="ribbon-node">
                   {stage}
                 </span>
               ))}
+              <span className="ribbon-pulse" style={{ animationDelay: '0s' }} />
+              <span className="ribbon-pulse" style={{ animationDelay: '1s' }} />
+              <span className="ribbon-pulse" style={{ animationDelay: '2s' }} />
             </div>
             <p className="tiny muted">The record only moves forward on human approval.</p>
           </div>
