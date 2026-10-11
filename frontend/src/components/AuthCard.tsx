@@ -63,8 +63,8 @@ export function AuthCard({
   }
 
   return (
-    <form onSubmit={submit} className="fatal-card auth-card">
-      <h2>{mode === 'login' ? 'Sign in' : 'Create analyst account'}</h2>
+    <form onSubmit={submit} className="fatal-card auth-card glass materialize">
+      <h2 className="glass-text">{mode === 'login' ? 'Sign in' : 'Create analyst account'}</h2>
       {error != null && <Alert kind="error">{error}</Alert>}
       <div className="field">
         <label className="field-label" htmlFor={`auth-username-${mode}`}>
