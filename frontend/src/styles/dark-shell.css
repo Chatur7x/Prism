@@ -1,0 +1,421 @@
+/*
+ * Dark shell layer — cinematic dark chrome for the hero routes only.
+ *
+ * SCOPE CONTRACT
+ *   Every dark-chrome rule in this file is scoped under `.theme-dark`, which
+ *   is toggled per route (see AppShell, HomePage, LoginPage, SignupPage).
+ *   Removing the class reverts everything: light routes are byte-identical
+ *   with or without this file. The only unscoped rules are inert utilities
+ *   (`.materialize`, `.scroll-edge-*`, `.glass-text`) and the exit-easing
+ *   swap, which change timing curves only — no static pixel differs.
+ *
+ * LAYER ORDER
+ *   Imported LAST in main.tsx (after home.css) so it wins ties. It reads the
+ *   existing token vocabulary (`--dur-enter`, `--ease-enter`,
+ *   `--dur-stagger-step`, `--radius-*`, `--z-*`) and never redefines it.
+ *   The dark palette lives here as `.theme-dark` overrides, not in
+ *   tokens.css, so the audit system's single-source tokens stay canonical.
+ */
+
+/* ==========================================================================
+   1. DARK TOKENS (.theme-dark scope)
+   ==========================================================================
+   Same hues as the product palette, re-picked for abyss backgrounds.
+   Trust/actor tokens keep ink + border-style semantics — only fills adapt,
+   so nothing becomes colour-alone. */
+
+.theme-dark {
+  color-scheme: dark;
+
+  /* Abyss scale: page -> deep plain -> raised panel. */
+  --surface-0: #0e1628; /* panel */
+  --surface-1: #0a1122; /* deep */
+  --surface-2: #14203a; /* controls, hover fills */
+  --surface-3: #1c2a4a; /* pressed controls */
+  --surface-inset: #070b16; /* recessed: evidence, code */
+
+  --ink-0: #eef2fa; /* primary text */
+  --ink-1: #a9b4cc; /* secondary text */
+  --ink-2: #6d7a94; /* metadata, labels — pairs with panel at 4.5:1+ */
+  --ink-3: #4d5872; /* placeholder, disabled */
+  --ink-inverse: #070b16;
+
+  --line-1: rgba(148, 170, 220, 0.14); /* default separator */
+  --line-2: rgba(148, 170, 220, 0.22); /* stronger separator, control border */
+
+  /* Cobalt: the light-lifted sibling of the product #2f5fd0. */
+  --accent: #5b8cff;
+  --accent-hover: #7aa5ff;
+  --accent-ink: #070b16;
+  --accent-soft: rgba(91, 140, 255, 0.14);
+  --accent-line: rgba(91, 140, 255, 0.35);
+
+  /* Trust: ink hues kept, fills re-picked for dark. Border styles
+     (solid/dashed/double/dotted) are untouched by design. */
+  --trust-approved: #63c294;
+  --trust-approved-bg: rgba(99, 194, 148, 0.12);
+  --trust-pending: #dba44a;
+  --trust-pending-bg: rgba(219, 164, 74, 0.12);
+  --trust-rejected: #e08585;
+  --trust-rejected-bg: rgba(224, 133, 133, 0.12);
+  --trust-verified: #74b6e0;
+  --trust-verified-bg: rgba(116, 182, 224, 0.12);
+  --trust-contradicted: #d98ac0;
+  --trust-contradicted-bg: rgba(217, 138, 192, 0.12);
+  --trust-missing: #9aa2b0;
+  --trust-missing-bg: rgba(154, 162, 176, 0.12);
+  --trust-neutral: #a9b4cc;
+  --trust-neutral-bg: rgba(169, 180, 204, 0.12);
+
+  --danger: #e08585;
+  --danger-bg: rgba(224, 133, 133, 0.12);
+  --warning: #dba44a;
+  --warning-bg: rgba(219, 164, 74, 0.12);
+  --info: #74b6e0;
+  --info-bg: rgba(116, 182, 224, 0.12);
+  --success: #63c294;
+  --success-bg: rgba(99, 194, 148, 0.12);
+
+  /* Actors keep their hues, re-picked for dark. Border-style semantics
+     (engine solid / llm dashed / human double) are untouched. */
+  --actor-engine: #7ba0f0;
+  --actor-engine-bg: rgba(123, 160, 240, 0.12);
+  --actor-llm: #b294ec;
+  --actor-llm-bg: rgba(178, 148, 236, 0.12);
+  --actor-human: #63c294;
+  --actor-human-bg: rgba(99, 194, 148, 0.12);
+
+  --surface-nav: rgba(7, 11, 22, 0.82);
+  --surface-scrim: rgba(0, 0, 0, 0.55);
+  --surface-glass: rgba(14, 22, 40, 0.6);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-overlay: 0 12px 40px rgba(0, 0, 0, 0.65);
+
+  --focus-ring: 0 0 0 2px #070b16, 0 0 0 4px var(--accent);
+}
+
+/* Dark page base: abyss behind hero chrome, primary ink on top. */
+.theme-dark.app-shell,
+.theme-dark.home,
+.theme-dark.auth-page {
+  background: #070b16;
+  background: var(--surface-inset);
+  color: var(--ink-0);
+}
+
+/* ==========================================================================
+   2. AURORA BACKGROUND
+   ==========================================================================
+   Two large radial-gradient blobs (cobalt, violet) drifting on 24s/32s
+   loops. Transform-only, behind hero chrome only — never behind dense
+   tables (dark routes have none). `prefers-reduced-motion` freezes them. */
+
+.theme-dark .aurora {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+}
+
+.theme-dark .aurora-blob {
+  position: absolute;
+  inset: auto;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.28;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.theme-dark .aurora-blob.cobalt {
+  top: -20vmax;
+  left: -12vmax;
+  background: radial-gradient(
+    closest-side,
+    rgba(91, 140, 255, 0.55),
+    transparent
+  );
+  animation: aurora-drift-a 24s ease-in-out infinite alternate;
+}
+
+.theme-dark .aurora-blob.violet {
+  top: -24vmax;
+  right: -14vmax;
+  background: radial-gradient(
+    closest-side,
+    rgba(139, 109, 226, 0.45),
+    transparent
+  );
+  animation: aurora-drift-b 32s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6vmax, 4vmax, 0) scale(1.12);
+  }
+}
+
+@keyframes aurora-drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-5vmax, 5vmax, 0) scale(1);
+  }
+}
+
+/* ==========================================================================
+   3. GLASS CARDS
+   ==========================================================================
+   Translucent panel fill + 16px backdrop blur + 1px gradient border via the
+   double-background trick. Falls back to solid panel under
+   `prefers-reduced-transparency`. */
+
+.theme-dark .glass {
+  background:
+    linear-gradient(var(--surface-glass), var(--surface-glass)) padding-box,
+    linear-gradient(
+        135deg,
+        rgba(148, 170, 220, 0.28),
+        rgba(148, 170, 220, 0.08) 40%,
+        rgba(91, 140, 255, 0.22)
+      )
+      border-box;
+  background-color: var(--surface-glass);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ==========================================================================
+   4. DARK BUTTONS
+   ==========================================================================
+   Cobalt gradient + glow shadow on hover. Press compression comes from the
+   global `:active` rule in motion.css and is kept, not replaced. */
+
+.theme-dark .btn.primary {
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.theme-dark .btn.primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent-hover));
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 24px rgba(91, 140, 255, 0.35);
+}
+
+/* ==========================================================================
+   5. AUTH CARD ON AURORA
+   ==========================================================================
+   Glass panel; inputs get dark inset fills with cobalt focus rings that
+   stay visible on dark (2px + offset). */
+
+.theme-dark .auth-card {
+  background:
+    linear-gradient(var(--surface-glass), var(--surface-glass)) padding-box,
+    linear-gradient(
+        135deg,
+        rgba(148, 170, 220, 0.28),
+        rgba(148, 170, 220, 0.08) 40%,
+        rgba(91, 140, 255, 0.22)
+      )
+      border-box;
+  background-color: var(--surface-glass);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--pad-panel);
+}
+
+.theme-dark .auth-card input,
+.theme-dark .auth-card select,
+.theme-dark .auth-card textarea {
+  background: rgba(7, 11, 22, 0.6);
+  border-color: var(--line-2);
+  color: var(--ink-0);
+}
+
+.theme-dark .auth-card input:focus-visible,
+.theme-dark .auth-card select:focus-visible,
+.theme-dark .auth-card textarea:focus-visible {
+  box-shadow: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   6. STAGGERED ENTRANCES + REVEAL
+   ==========================================================================
+   Hero/dashboard blocks enter with the existing --dur-enter/--ease-enter
+   vocabulary; delays in --dur-stagger-step multiples, capped at 8 items.
+   `.reveal` handles fade+8px rise for below-fold content; the `useReveal`
+   hook (Plan B) adds `.is-visible` once an element enters the viewport. */
+
+.theme-dark .stagger-1 { animation-delay: 0ms; }
+.theme-dark .stagger-2 { animation-delay: calc(1 * var(--dur-stagger-step)); }
+.theme-dark .stagger-3 { animation-delay: calc(2 * var(--dur-stagger-step)); }
+.theme-dark .stagger-4 { animation-delay: calc(3 * var(--dur-stagger-step)); }
+.theme-dark .stagger-5 { animation-delay: calc(4 * var(--dur-stagger-step)); }
+.theme-dark .stagger-6 { animation-delay: calc(5 * var(--dur-stagger-step)); }
+.theme-dark .stagger-7 { animation-delay: calc(6 * var(--dur-stagger-step)); }
+.theme-dark .stagger-8 { animation-delay: calc(7 * var(--dur-stagger-step)); }
+
+.reveal {
+  opacity: 0;
+  transform: translateY(var(--travel-default));
+  transition:
+    opacity var(--dur-enter) var(--ease-enter),
+    transform var(--dur-enter) var(--ease-enter);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ==========================================================================
+   7. APPLE-DESIGN FOUNDATION UTILITIES
+   ==========================================================================
+   Inert until applied: no component references these classes yet (Plan C
+   wires them up), so light routes cannot change. Exit-easing swap below is
+   timing-only — no static pixel differs. */
+
+/* Materialize, don't fade: small surfaces (cards, dialogs) arrive as
+   material — blur radius + scale together. Never full-page backgrounds:
+   animating filter over a large area costs frame time. Fires once per
+   mount (`both` fill); never locks input. */
+.materialize {
+  animation: materialize-in var(--dur-enter) var(--ease-enter) both;
+}
+
+@keyframes materialize-in {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+/* Scroll-edge effects: fade/blur masks where scrollable content meets
+   sticky chrome, instead of hard divider lines. For sidebar nav and chat
+   history containers. */
+.scroll-edge-top {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--space-4)
+  );
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--space-4));
+}
+
+.scroll-edge-bottom {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--space-4)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--space-4)),
+    transparent
+  );
+}
+
+.scroll-edge-top.scroll-edge-bottom {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--space-4),
+    #000 calc(100% - var(--space-4)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--space-4),
+    #000 calc(100% - var(--space-4)),
+    transparent
+  );
+}
+
+/* Vibrancy text on glass: higher-contrast ink, slightly heavier weight,
+   +0.01em tracking (see --tracking-glass in tokens.css). */
+.glass-text {
+  color: var(--ink-0);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-glass, 0.01em);
+}
+
+/* Mirrored easings: reversible pairs return on the inverse path, so toast
+   dismissal mirrors toast arrival. The drawer has no exit keyframe in
+   motion.css (enter-only), so the toast is the only overlay exit path to
+   move; the token is global for Plan C's drawer exit. */
+.toast.dismissing {
+  animation: toast-out var(--dur-fast) var(--ease-enter-inverse, var(--ease-exit)) both;
+}
+
+/* ==========================================================================
+   8. FALLBACKS AND GUARDS
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-dark .aurora-blob {
+    animation: none;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .materialize {
+    animation: none;
+  }
+
+  .theme-dark .stagger-1,
+  .theme-dark .stagger-2,
+  .theme-dark .stagger-3,
+  .theme-dark .stagger-4,
+  .theme-dark .stagger-5,
+  .theme-dark .stagger-6,
+  .theme-dark .stagger-7,
+  .theme-dark .stagger-8 {
+    animation-delay: 0ms;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .theme-dark .glass,
+  .theme-dark .auth-card {
+    background: var(--surface-0);
+    border: 1px solid var(--line-2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* 390px mobile: aurora blobs are oversized by construction; keep them from
+   introducing horizontal overflow. */
+@media (max-width: 480px) {
+  .theme-dark .aurora {
+    overflow: clip;
+  }
+}

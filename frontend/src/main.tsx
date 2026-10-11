@@ -18,6 +18,7 @@ import './styles/motion.css'
 import './styles/premium.css'
 import './styles/primitives.css'
 import './styles/home.css'
+import './styles/dark-shell.css'
 
 const container = document.getElementById('root')
 if (!container) {
