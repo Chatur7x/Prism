@@ -272,17 +272,28 @@
 .theme-dark .stagger-7 { animation-delay: calc(6 * var(--dur-stagger-step)); }
 .theme-dark .stagger-8 { animation-delay: calc(7 * var(--dur-stagger-step)); }
 
+/* Scroll-driven product reveals: sections rise, unblur, and settle as they
+   enter — one orchestrated moment per section, transform/opacity only.
+   The blur is paint work confined to a single 320ms entrance per section. */
 .reveal {
   opacity: 0;
-  transform: translateY(var(--travel-default));
+  transform: translateY(16px);
+  filter: blur(6px);
   transition:
     opacity var(--dur-enter) var(--ease-enter),
-    transform var(--dur-enter) var(--ease-enter);
+    transform var(--dur-enter) var(--ease-enter),
+    filter var(--dur-enter) var(--ease-enter);
 }
 
 .reveal.is-visible {
   opacity: 1;
   transform: none;
+  filter: blur(0);
+}
+
+/* Anchored sections land below the sticky header, not under it. */
+.home-section[id] {
+  scroll-margin-top: var(--space-8);
 }
 
 /* ==========================================================================
@@ -383,6 +394,7 @@
   .reveal {
     opacity: 1;
     transform: none;
+    filter: none;
     transition: none;
   }
 
@@ -816,6 +828,45 @@
 
 .theme-dark.home {
   max-width: 1200px;
+}
+
+/* The hero copy card: `.glass` carries no padding of its own and the hero
+   section pads vertically only, so text sat flush against the card edges.
+   Breathing room on all four sides here. */
+.theme-dark .home-hero .glass {
+  padding: var(--space-7) var(--space-6);
+}
+
+.theme-dark .home-hero .home-kicker {
+  margin-bottom: var(--space-4);
+}
+
+/* Final CTA joins the signal treatment: one primary colour per viewport. */
+.theme-dark .home-final .btn.primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #1a1206;
+}
+
+.theme-dark .home-final .btn.primary:hover {
+  background: var(--signal-hover);
+  border-color: var(--signal-hover);
+  box-shadow: 0 0 24px rgba(255, 178, 36, 0.35);
+}
+
+/* Ribbon readability: wider node gaps, labels clear of the track glow,
+   dimmer line so the dots lead instead of competing with them. */
+.theme-dark .ribbon {
+  gap: var(--space-3);
+  padding: var(--pad-panel) var(--space-7);
+}
+
+.theme-dark .ribbon::before {
+  opacity: 0.45;
+}
+
+.theme-dark .ribbon-node {
+  gap: var(--space-2);
 }
 
 .theme-dark .ribbon {
