@@ -663,9 +663,136 @@
   box-shadow: var(--shadow-md);
 }
 
-/* Active nav indicator: 2px amber inset rule (dark routes only). */
+/* Handshake: DashboardPage carries status as `data-status` (action | info
+   | neutral). These aliases map it onto the same glow treatments, so markup
+   and stylesheet agree without either side inventing names. */
+.theme-dark .tile-glow[data-status='action'] {
+  border-color: rgba(255, 178, 36, 0.4);
+  box-shadow:
+    0 0 24px rgba(255, 178, 36, 0.18),
+    var(--shadow-md);
+}
+
+.theme-dark .tile-glow[data-status='info'] {
+  border-color: rgba(124, 199, 255, 0.4);
+  box-shadow:
+    0 0 24px rgba(124, 199, 255, 0.18),
+    var(--shadow-md);
+}
+
+.theme-dark .tile-glow[data-status='neutral'] {
+  border-color: var(--line-1);
+  box-shadow: var(--shadow-md);
+}
+
+/* Ribbon nodes: small labelled stops on the conduit. Dots glow amber;
+   labels sit beneath in metadata ink. Plain spans in markup, so all
+   presentation lives here. */
+.theme-dark .ribbon-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-caption);
+  letter-spacing: var(--tracking-caption);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.theme-dark .ribbon-node::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 12px rgba(255, 178, 36, 0.8);
+}
+
+/* ==========================================================================
+   11. SELF-CRITIQUE FIXES (screenshot pass, 1920px + 390px)
+   ==========================================================================
+   - The centred home column wasted ~40% of wide viewports: widen it.
+   - Ribbon nodes stacked vertically while pulses travel horizontally:
+     the conduit is a horizontal flex row of node stops on the track line.
+   - Dashboard sidebar kept the neutral active state: amber edge-light.
+   - Aurora read as flat navy: raise presence, thin the glass so it shows.
+   - Two competing primaries in the home header (blue .primary vs amber
+     signal CTA): the header CTA joins the signal treatment on dark. */
+
+.theme-dark.home {
+  max-width: 1200px;
+}
+
+.theme-dark .ribbon {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  /* Dot centre: padding top + half the 8px dot, so the track line and the
+     travelling pulses run through the node dots, not the middle of the box. */
+  --ribbon-dot-top: calc(var(--pad-panel) + 4px);
+  min-height: 0;
+}
+
+.theme-dark .ribbon::before {
+  top: var(--ribbon-dot-top);
+}
+
+.theme-dark .ribbon-pulse {
+  top: var(--ribbon-dot-top);
+}
+
+.theme-dark .ribbon-node {
+  flex: 1 1 0;
+}
+
+@media (max-width: 640px) {
+  .theme-dark .ribbon {
+    flex-wrap: wrap;
+    row-gap: var(--space-4);
+  }
+  .theme-dark .ribbon-node {
+    flex-basis: 28%;
+  }
+  /* Wrapped rows have no single conduit height: the travelling pulses
+     carry the motion alone rather than a line through the wrong row. */
+  .theme-dark .ribbon::before {
+    display: none;
+  }
+  /* The header nav crowds a 390px bar: links hide, the CTA stays. */
+  .theme-dark .home-bar nav a:not(.btn) {
+    display: none;
+  }
+}
+
+.theme-dark .nav-link.active {
+  box-shadow: inset 2px 0 0 var(--signal);
+}
+
+/* Contract class from spec §9 (no current markup uses it; the dashboard
+   consumes the equivalent via `.nav-link.active` above). */
 .theme-dark .edge-light {
   box-shadow: inset 2px 0 0 var(--signal);
+}
+
+.theme-dark .aurora-blob {
+  opacity: 0.38;
+}
+
+.theme-dark {
+  --surface-glass: rgba(14, 22, 40, 0.6);
+}
+
+.theme-dark .home-bar .btn.primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #1a1206;
+}
+
+.theme-dark .home-bar .btn.primary:hover {
+  background: var(--signal-hover);
+  border-color: var(--signal-hover);
+  box-shadow: 0 0 24px rgba(255, 178, 36, 0.35);
 }
 
 /* Signal-amber primary button. `.btn.primary` (light) is untouched. */
