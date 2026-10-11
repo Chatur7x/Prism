@@ -37,6 +37,15 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleLlmClient.class);
     private static final int MAX_BODY_CHARS = 2_000_000;
 
+    /**
+     * Provider-side marker that constrained JSON generation itself failed.
+     * Observed on Groq ({@code openai/gpt-oss-20b}) as HTTP 400 with an empty
+     * {@code failed_generation}: the model could not satisfy
+     * {@code response_format: json_object}, so retrying the same constrained
+     * request would fail identically. Package-visible for tests.
+     */
+    static final String JSON_VALIDATE_FAILED = "json_validate_failed";
+
     private final LlmProperties props;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -48,11 +57,15 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         this.objectMapper = objectMapper;
         this.metrics = metrics;
 
+        this.restClient = initRestClient(props, builder);
+    }
+
+    private static RestClient initRestClient(LlmProperties props, RestClient.Builder builder) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(props.connectTimeoutSeconds()));
         requestFactory.setReadTimeout(Duration.ofSeconds(props.timeoutSeconds()));
 
-        this.restClient = builder
+        return builder
                 .baseUrl(normalizeBaseUrl(props.baseUrl()))
                 .requestFactory(requestFactory)
                 .build();
@@ -99,38 +112,39 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         // OpenAI all honour json_object on /chat/completions. This is a second
         // net behind the prompt's JSON-only instruction, not a replacement for
         // backend parsing and semantic validation, which still run unchanged.
-        payload.put("response_format", Map.of("type", "json_object"));
+        // Operator-killable via LLM_JSON_MODE=false for providers that reject it.
+        boolean structured = props.jsonMode();
+        if (structured) {
+            payload.put("response_format", Map.of("type", "json_object"));
+        }
         payload.put("messages", java.util.List.of(
                 Map.of("role", "system", "content", system),
                 Map.of("role", "user", "content", user)));
 
+        String response;
         try {
-            var response = restClient.post()
-                    .uri("/chat/completions")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .headers(h -> {
-                        if (props.apiKey() != null && !props.apiKey().isBlank()) {
-                            h.setBearerAuth(props.apiKey());
-                        }
-                    })
-                    .body(payload)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, (req, res) -> {
-                        String detail = readErrorBody(res);
-                        int code = res.getStatusCode().value();
-                        if (isTransient(code)) {
-                            throw new LlmTransientException(
-                                    "LLM provider returned " + code + ": " + truncate(detail, 400), code);
-                        }
-                        throw new LlmPermanentException(
-                                "LLM provider rejected the request with " + code + ": " + truncate(detail, 400), code);
-                    })
-                    .body(String.class);
+            response = postCompletions(payload);
+        } catch (LlmPermanentException ex) {
+            if (structured && isJsonValidationFailure(ex)) {
+                // The constraint itself failed, not the request: retry once
+                // with free-form generation. Anything downstream still passes
+                // through parsing plus semantic validation unchanged.
+                log.warn("Provider rejected constrained JSON generation; retrying once without "
+                        + "response_format for model {}", model);
+                payload.remove("response_format");
+                response = postCompletions(payload);
+            } else {
+                throw ex;
+            }
+        }
+
+        try {
+            String raw = response;
 
             long elapsed = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
             metrics.recordLlmLatency(purpose.name().toLowerCase(java.util.Locale.ROOT), model, elapsed, true);
 
+            response = raw;
             if (response == null || response.isBlank()) {
                 throw new LlmTransientException("LLM provider returned an empty body", null);
             }
@@ -158,6 +172,44 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             throw new LlmTransientException("LLM provider unreachable: " + ex.getMostSpecificCause().getMessage(),
                     null, ex.getMostSpecificCause());
         }
+    }
+
+    /**
+     * True only for the constrained-generation failure: HTTP 400 whose body
+     * names {@code json_validate_failed}. Any other 400 (bad key, bad model,
+     * bad payload) must propagate untouched — retrying those without the
+     * format would just fail differently and burn budget.
+     */
+    private static boolean isJsonValidationFailure(LlmPermanentException ex) {
+        return Integer.valueOf(400).equals(ex.getStatusCode())
+                && ex.getMessage() != null
+                && ex.getMessage().contains(JSON_VALIDATE_FAILED);
+    }
+
+    /** One POST to /chat/completions; error mapping lives here, called at most twice. */
+    private String postCompletions(Map<String, Object> payload) {
+        return restClient.post()
+                .uri("/chat/completions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .headers(h -> {
+                    if (props.apiKey() != null && !props.apiKey().isBlank()) {
+                        h.setBearerAuth(props.apiKey());
+                    }
+                })
+                .body(payload)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    String detail = readErrorBody(res);
+                    int code = res.getStatusCode().value();
+                    if (isTransient(code)) {
+                        throw new LlmTransientException(
+                                "LLM provider returned " + code + ": " + truncate(detail, 400), code);
+                    }
+                    throw new LlmPermanentException(
+                            "LLM provider rejected the request with " + code + ": " + truncate(detail, 400), code);
+                })
+                .body(String.class);
     }
 
     /** Provider message content plus whether the model stopped at the token limit. */

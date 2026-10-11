@@ -124,6 +124,7 @@ services:
       # 0 (default) keeps full parallelism. Set ~25000 on a free-tier provider
       # with a per-minute token budget so chunk bursts stop exhausting it.
       LLM_MIN_INTERVAL_MILLIS: ${LLM_MIN_INTERVAL_MILLIS:-0}
+      LLM_JSON_MODE: ${LLM_JSON_MODE:-true}
       # 12 is the floor enforced by PasswordPolicy, and the compose file holds to
       # it so a weak demo password cannot be seeded here and then fail in a
       # deployed environment.

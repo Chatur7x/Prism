@@ -91,7 +91,12 @@ export function DocumentDetailPage() {
             <Link className="btn" to="/documents">
               All documents
             </Link>
-            <button className="btn" onClick={() => void reprocess.run()} disabled={reprocess.pending}>
+            <button
+              className="btn"
+              onClick={() => void reprocess.run()}
+              disabled={reprocess.pending || busy}
+              title={busy ? 'Extraction is already running for this document' : undefined}
+            >
               {reprocess.pending && <span className="spinner" aria-hidden="true" />} Re-run extraction
             </button>
           </>

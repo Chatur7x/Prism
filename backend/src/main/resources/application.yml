@@ -95,6 +95,9 @@ prism:
     max-retries: ${LLM_MAX_RETRIES:3}
     retry-backoff-millis: ${LLM_RETRY_BACKOFF_MS:1000}
     min-interval-millis: ${LLM_MIN_INTERVAL_MILLIS:0}
+    # Ask the provider to enforce a JSON envelope (response_format json_object).
+    # Disable per-deployment for models that reject constrained generation.
+    json-mode: ${LLM_JSON_MODE:true}
   extraction:
     max-triples-per-chunk: ${EXTRACT_MAX_TRIPLES_PER_CHUNK:12}
     max-claims-per-chunk: ${EXTRACT_MAX_CLAIMS_PER_CHUNK:8}

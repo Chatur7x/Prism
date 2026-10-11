@@ -111,7 +111,7 @@ class LlmProviderModeTest {
     /** A real client wired for metadata inspection. Never used to make a request. */
     private static OpenAiCompatibleLlmClient realClient(String apiKey) {
         LlmProperties props = new LlmProperties("openai", "https://example.invalid/v1", apiKey,
-                5, 60, 0.0, 1024, "m", "m", "m", "m", "m", 3, 100L, 0L);
+                5, 60, 0.0, 1024, "m", "m", "m", "m", "m", 3, 100L, 0L, true);
         return new OpenAiCompatibleLlmClient(props, RestClient.builder(),
                 new ObjectMapper(), new PrismMetrics(new SimpleMeterRegistry()));
     }

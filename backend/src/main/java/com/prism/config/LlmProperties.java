@@ -15,6 +15,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *                 chunk extractions can exhaust the budget faster than retry
  *                 backoff alone can recover. Pacing spaces calls apart;
  *                 it never changes what is sent or how responses are read.
+ * @param jsonMode ask the provider to enforce a JSON envelope; disable where
+ *                 a model rejects constrained generation (falls back to prompt).
  */
 @ConfigurationProperties(prefix = "prism.llm")
 public record LlmProperties(
@@ -32,7 +34,8 @@ public record LlmProperties(
         String chatModel,
         int maxRetries,
         long retryBackoffMillis,
-        long minIntervalMillis) {
+        long minIntervalMillis,
+        boolean jsonMode) {
 
     public enum Purpose {
         EXTRACT, JUDGE, DEBATE, SYNTHESIS, CHAT

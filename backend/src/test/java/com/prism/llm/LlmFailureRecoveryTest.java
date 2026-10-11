@@ -97,7 +97,7 @@ class LlmFailureRecoveryTest {
     /** 1 ms backoff so the suite is not dominated by sleeping. */
     private static LlmProperties props(int maxRetries) {
         return new LlmProperties("openai", "https://example.invalid/v1", "key",
-                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", maxRetries, 1L, 0L);
+                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", maxRetries, 1L, 0L, true);
     }
 
     private static RetryingLlmService service(LlmClient client, int maxRetries) {
@@ -318,7 +318,7 @@ class LlmFailureRecoveryTest {
     @DisplayName("a configured minimum interval spaces two calls apart")
     void minIntervalSpacesCallsApart() {
         LlmProperties paced = new LlmProperties("openai", "https://example.invalid/v1", "key",
-                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", 3, 1L, 200L);
+                2, 5, 0.0, 1024, "m", "m", "m", "m", "m", 3, 1L, 200L, true);
         RetryingLlmService svc =
                 new RetryingLlmService(new Stub(), paced, mock(TraceRecorder.class));
 
