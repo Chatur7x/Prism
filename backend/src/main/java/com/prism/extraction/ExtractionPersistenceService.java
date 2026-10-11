@@ -63,6 +63,20 @@ public class ExtractionPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ExtractionRun startRun(Document document, int chunkCount, String model,
                                 String promptVersion) {
+        // Single-flight at run level: refuse while a PENDING/RUNNING run exists
+        // for this document instead of blowing up on a constraint at completion.
+        // True concurrency is already serialized by background_jobs (unique
+        // job_key + atomic claim); this is the honest error for the residual
+        // race. Crash recovery marks stale RUNNING rows FAILED first, so a
+        // restart can always start a fresh run.
+        runs.findFirstByDocumentIdAndStatusInOrderByIdDesc(document.getId(),
+                        List.of(ExtractionStatus.PENDING, ExtractionStatus.RUNNING))
+                .ifPresent(active -> {
+                    throw com.prism.common.error.ApiException.conflict(
+                            "document " + document.getId()
+                                    + " already has an active extraction run "
+                                    + active.getId());
+                });
         ExtractionRun run = new ExtractionRun(document, chunkCount,
                 promptVersion, model);
         run.markRunning(Instant.now());
