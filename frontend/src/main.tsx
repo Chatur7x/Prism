@@ -19,6 +19,7 @@ import './styles/premium.css'
 import './styles/primitives.css'
 import './styles/home.css'
 import './styles/dark-shell.css'
+import './styles/cinematic.css'
 
 const container = document.getElementById('root')
 if (!container) {
