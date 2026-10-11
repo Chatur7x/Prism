@@ -318,6 +318,12 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1); /* in place, out of place */
   --ease-enter: cubic-bezier(0.16, 1, 0.3, 1); /* decelerate into arrival */
   --ease-exit: cubic-bezier(0.4, 0, 1, 1); /* accelerate out of departure */
+  /* Mirrored easing: inverse control points of --ease-enter, for reversible
+     pairs (toast in/out, drawer in/out) so return paths mirror outbound
+     paths. See dark-shell.css for the exit-path assignments. */
+  --ease-enter-inverse: cubic-bezier(0.7, 0, 0.84, 0);
+  /* Vibrancy tracking for text over glass (see .glass-text). Value only. */
+  --tracking-glass: 0.01em;
 
   /* Spring presets, expressed as cubic-béziers with no overshoot.
      A real spring needs a JS driver; for declarative CSS these equivalents give
