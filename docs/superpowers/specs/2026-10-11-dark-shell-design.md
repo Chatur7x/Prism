@@ -84,10 +84,46 @@ new dependencies. Functionality: unchanged. Mood: deep-navy/cobalt.
 - Contrast spot-check on dark body/secondary text (7:1 / 4.5:1 targets).
 - Diff review: styles + 2 hooks + class toggles only; no logic changes.
 
-## 7. Open assumption
+## 9. Beast v2 — verification-console identity (approved 2026-10-11)
 
-Accent mood deep-navy/cobalt chosen by designer; one-line token swap to
-emerald if the reviewer prefers. Confirm during spec review.
+Supersedes the cobalt mood: the dark shell becomes a distinctive
+"verification console" drawn from the product's own subject (the
+document → verdict pipeline). Cobalt remains as a secondary/ice tone;
+the primary accent is signal amber, spent only on verdict moments.
+
+### Tokens (dark shell scope)
+
+- `--signal: #ffb224` (primary accent: CTAs, verified ticks, active states)
+- `--signal-hover: #ffc44d`, `--signal-soft: rgba(255,178,36,0.14)`
+- `--ice: #7cc7ff` (secondary: links, info highlights, ribbon secondary pulse)
+- `--abyss: #060913` (page base, deeper than before)
+
+### Class contracts (Agent 1 implements CSS, Agent 2 consumes these exact names)
+
+- `.display-hero` — oversized tight-tracked hero headline
+  (`clamp(2.5rem, 6vw, 4.5rem)`, `-0.04em`, line-height 1.02).
+- `.ribbon` — pipeline conduit container (position relative, gradient
+  track line); `.ribbon-pulse` — traveling pulse dot (transform-only
+  keyframe along the track, 3s loop, staggered delays via inline style).
+- `.tile-glow` — console tile with status glow (amber for action-needed,
+  ice for info, none for neutral); glow via box-shadow only.
+- `.edge-light` — active nav indicator: 2px amber inset rule (replaces
+  the neutral rail colour on dark routes only).
+- `.btn-signal` — signal-amber primary button (dark bg, `#1a1206` ink);
+  existing `.btn.primary` untouched for light routes.
+- `.stat-tabular` — `font-variant-numeric: tabular-nums` for all animated stats.
+
+### Markup (Agent 2)
+
+- Home: left-aligned hero — kicker, `.display-hero` headline, lede,
+  CTA row (`.btn-signal` primary), right side: `.ribbon` with the 10
+  pipeline stages as nodes and 3 traveling `.ribbon-pulse` dots.
+  Below-fold sections unchanged in content, keep `.reveal`.
+- Dashboard: pipeline strip stays; stat tiles become `.tile-glow`
+  variants by status; numbers keep `useCountUp` + `.stat-tabular`.
+- All copy, routes, links, forms, gates unchanged. Reduced-motion:
+  ribbon pulses frozen, count-ups instant (existing hooks/CSS blocks).
+- 390px: ribbon stacks below headline, pulses keep transform-only motion.
 
 ## 8. Apple-design applications (apple-design skill)
 
