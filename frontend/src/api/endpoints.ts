@@ -204,7 +204,13 @@ export const knowledgeApi = {
 
 export const verificationApi = {
   verify: (claimId: number) =>
-    request<VerificationOutcome>('/api/claims/verify', { method: 'POST', body: { claimId } }),
+    request<VerificationOutcome>('/api/claims/verify', {
+      method: 'POST',
+      body: { claimId },
+      // A single verification still performs retrieval plus a model call,
+      // which routinely exceeds the 30s default on a free-tier provider.
+      timeoutMs: 180_000,
+    }),
 
   verifyAll: (corpusId: number, limit = 10) =>
     request<VerifyAllResult>(`/api/claims/verify-all${qs({ corpusId, limit })}`, {
