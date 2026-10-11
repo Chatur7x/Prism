@@ -27,9 +27,10 @@
 
 ## File Structure
 
-- Modify `frontend/src/pages/ChatPage.tsx` — citation hover classes, typing indicator, `.reveal` on history sections.
+- Modify `frontend/src/pages/ChatPage.tsx` — citation hover classes, typing indicator, `.reveal` on history sections, scroll-edge masks on the history container.
 - Modify `frontend/src/pages/DebatePage.tsx` — animated weight bars, live-badge polish classes.
 - Modify `frontend/src/pages/GraphPage.tsx` — legend hover classes, `useCountUp` on node/edge stats.
+- Auth/modal surfaces (Plan C) use `.materialize` for entrances; toast/drawer exits already moved to `--ease-enter-inverse` in Plan A.
 - Possibly extend `frontend/src/styles/dark-shell.css` with a clearly-marked light-safe section (typing dots, weight bars) — or `motion.css` if the reviewer judges it belongs to the motion layer.
 
 ---

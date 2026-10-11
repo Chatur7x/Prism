@@ -88,3 +88,28 @@ new dependencies. Functionality: unchanged. Mood: deep-navy/cobalt.
 
 Accent mood deep-navy/cobalt chosen by designer; one-line token swap to
 emerald if the reviewer prefers. Confirm during spec review.
+
+## 8. Apple-design applications (apple-design skill)
+
+Applied where an audit tool honestly has gesture-free surfaces; nothing
+gesture-driven is introduced to justify springs.
+
+- **Press-down feedback.** Already the codebase rule (`:active` scale on
+  `.btn`/`.nav-link`); extend the audit to every new dark control and keep
+  it on pointer-down via `:active` (no JS delay).
+- **Materialize, don't fade.** Glass/modal entrances animate blur radius
+  and scale together (`.materialize` utility: `filter: blur(8px)` +
+  `scale(0.97)` → sharp + `scale(1)`), so surfaces arrive as material.
+  Blur animation is confined to small surfaces (cards, dialogs), never
+  full-page backgrounds.
+- **Scroll-edge effects.** Sidebar nav and chat history use a fade/blur
+  mask where content meets sticky chrome instead of hard divider lines.
+- **Vibrancy text on glass.** Text over glass uses higher-contrast ink
+  (`--ink-0` never `--ink-2`), slightly heavier weight, +0.01em tracking.
+- **Mirrored easings.** Add `--ease-enter-inverse` (inverse control points
+  of `--ease-enter`) and use it for reversible pairs (toast in/out,
+  drawer in/out) so return paths mirror outbound paths.
+- **Interruptibility.** All new keyframe entrances are non-gesture and
+  fire once per mount (`both` fill); nothing locks input mid-transition.
+  No gesture-driven animation is added, so no spring driver is needed —
+  the critically-damped bézier equivalents in tokens stay.

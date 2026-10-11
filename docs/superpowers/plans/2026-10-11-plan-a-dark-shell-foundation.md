@@ -62,6 +62,34 @@ git add frontend/src/styles/dark-shell.css frontend/src/main.tsx
 git commit -m "Add dark shell stylesheet (scoped, inert without theme-dark)"
 ```
 
+### Task 3: Apple-design foundation utilities (materialize, scroll-edge, vibrancy, mirrored easings)
+
+**Files:**
+- Modify: `frontend/src/styles/dark-shell.css` (append one section)
+- Modify: `frontend/src/styles/tokens.css` (add `--ease-enter-inverse` + vibrancy tracking token; values only, no rule changes)
+
+**Interfaces:**
+- Consumes: existing `--ease-enter` control points (mirror them).
+- Produces: `.materialize` entrance utility; `.scroll-edge-top/.scroll-edge-bottom` mask helpers; `.glass-text` vibrancy rule; `--ease-enter-inverse` token; toast/drawer exit paths switched to the inverse easing.
+
+- [ ] **Step 1: Append the apple-design section to `dark-shell.css` and the tokens**
+
+Blur+scale materialize confined to small surfaces; scroll-edge masks for
+sidebar nav and chat history containers; vibrancy text rule for glass;
+mirrored easing token with toast/drawer exits moved onto it.
+
+- [ ] **Step 2: Typecheck and production build**
+
+Run: `cd frontend && npx tsc --noEmit && npm run build`
+Expected: both pass.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add frontend/src/styles/dark-shell.css frontend/src/styles/tokens.css
+git commit -m "Add apple-design foundation utilities (materialize, scroll-edge, mirrored easings)"
+```
+
 ### Task 2: Route toggles on the four dark roots
 
 **Files:**
