@@ -60,8 +60,29 @@ function spaFallback(): Plugin {
   }
 }
 
+/**
+ * Strips the `%VITE_API_BASE%` CSP placeholder when the variable is unset.
+ *
+ * Vite interpolates `%VAR%` in index.html only when the variable exists at
+ * build time; otherwise the literal placeholder ships and every page load
+ * logs a CSP console error for a token browsers correctly ignore. Same-origin
+ * deployments (docker, dev, Pages) never set it, so leaving the token means
+ * permanent console noise on exactly the builds reviewers run locally. When
+ * the variable IS set (Vercel), this plugin leaves the file alone and Vite's
+ * own replacement produces `connect-src 'self' https://<api-host>`.
+ */
+function cspPlaceholder(): Plugin {
+  return {
+    name: 'prism:csp-placeholder',
+    transformIndexHtml(html) {
+      if (process.env.VITE_API_BASE) return html
+      return html.replace(' %VITE_API_BASE%', '')
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), spaFallback()],
+  plugins: [react(), spaFallback(), cspPlaceholder()],
   /**
    * Public path for the built bundle.
    *
