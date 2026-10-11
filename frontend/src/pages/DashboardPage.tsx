@@ -5,7 +5,7 @@
  * `GET /api/corpora/{id}/statistics` is verifier-gated; that 403 produces a
  * degraded view, never an error page.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { ApiError } from '../api/client'
@@ -13,6 +13,8 @@ import { contradictionApi, corpusApi, documentApi, knowledgeApi, traceApi } from
 import type { CorpusStatistics } from '../api/types'
 import { useCorpus } from '../corpus/CorpusContext'
 import { Alert, Card, Empty, ErrorState, Loading, PageHeader, Stat } from '../components/ui'
+import { useCountUp } from '../hooks/useCountUp'
+import { useReveal } from '../hooks/useReveal'
 
 interface DashboardData {
   statistics: CorpusStatistics | null
@@ -37,6 +39,9 @@ export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const revealStages = useReveal<HTMLElement>()
+  const revealStats = useReveal<HTMLElement>()
+  const revealCards = useReveal<HTMLElement>()
 
   useEffect(() => {
     if (!selected) {
@@ -122,7 +127,7 @@ export function DashboardPage() {
         actions={<Link to="/corpora" className="btn sm">Switch corpus</Link>}
       />
 
-      <nav className="pipeline-strip" aria-label="Pipeline stages">
+      <nav ref={revealStages} className="pipeline-strip reveal" aria-label="Pipeline stages">
         {STAGES.map((stage) => (
           <Link key={stage.label} to={stage.to} className="pipeline-stage">
             {stage.label}
@@ -143,8 +148,8 @@ export function DashboardPage() {
             </Alert>
           )}
 
-          <div className="grid cols-4">
-            <Stat label="Documents" value={data.documents ?? '—'} />
+          <div ref={revealStats} className="grid cols-4 reveal">
+            <CountedStat label="Documents" value={data.documents} />
             <Stat
               label="Pending approvals"
               value={
@@ -154,11 +159,11 @@ export function DashboardPage() {
               }
               hint={canVerify ? undefined : 'Verifier only'}
             />
-            <Stat label="Open contradictions" value={data.openContradictions ?? '—'} />
-            <Stat label="Glass Box traces" value={data.recentTraces ?? '—'} />
+            <CountedStat label="Open contradictions" value={data.openContradictions} />
+            <CountedStat label="Glass Box traces" value={data.recentTraces} />
           </div>
 
-          <div className="grid cols-2">
+          <div ref={revealCards} className="grid cols-2 reveal">
             <Card title="Needs a human">
               {data.pendingTriples == null &&
               data.pendingClaims == null &&
@@ -184,10 +189,10 @@ export function DashboardPage() {
             <Card title="Pipeline">
               {data.statistics ? (
                 <div className="stack">
-                  <Stat label="Triples" value={data.statistics.triples} />
-                  <Stat label="Claims" value={data.statistics.claims} />
-                  <Stat label="Verdicts" value={data.statistics.verdicts} />
-                  <Stat label="Quarantined" value={data.statistics.quarantined} />
+                  <CountedStat label="Triples" value={data.statistics.triples} />
+                  <CountedStat label="Claims" value={data.statistics.claims} />
+                  <CountedStat label="Verdicts" value={data.statistics.verdicts} />
+                  <CountedStat label="Quarantined" value={data.statistics.quarantined} />
                 </div>
               ) : (
                 <Empty title={canVerify ? 'No statistics yet' : 'Degraded by role'}>
@@ -202,4 +207,14 @@ export function DashboardPage() {
       )}
     </>
   )
+}
+
+/**
+ * A `Stat` whose numeric value counts up from zero on arrival and settles on
+ * the exact fetched number. Missing values render the same '—' placeholder
+ * as before; the hook runs unconditionally so hook order stays stable.
+ */
+function CountedStat({ label, value, hint }: { label: string; value: number | null; hint?: ReactNode }) {
+  const display = useCountUp(value ?? 0)
+  return <Stat label={label} value={value == null ? '—' : display} hint={hint} />
 }
