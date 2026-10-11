@@ -522,3 +522,212 @@
     transform: none;
   }
 }
+
+/* ==========================================================================
+   10. BEAST V2 — VERIFICATION-CONSOLE IDENTITY (spec 2026-10-11 §9)
+   ==========================================================================
+   Primary accent is signal amber, spent only on verdict moments; cobalt
+   stays as the secondary/ice tone. Every rule that paints dark chrome is
+   scoped under `.theme-dark` (light routes pixel-identical). The only
+   unscoped rule is the inert `.stat-tabular` numeric utility, which has no
+   colour and takes effect only where Agent 2 applies the class (dark
+   dashboard stats). Agent 2 consumes these exact class names in
+   HomePage/DashboardPage markup — do not rename. */
+
+.theme-dark {
+  --signal: #ffb224; /* primary accent: CTAs, verified ticks, active states */
+  --signal-hover: #ffc44d;
+  --signal-soft: rgba(255, 178, 36, 0.14);
+  --ice: #7cc7ff; /* secondary: links, info highlights, ribbon 2nd pulse */
+  --abyss: #060913; /* page base, deeper than before */
+}
+
+/* Deeper page base on dark routes only (light untouched). */
+.theme-dark.app-shell,
+.theme-dark.home,
+.theme-dark.auth-page {
+  background: var(--abyss);
+}
+
+/* Oversized tight-tracked hero headline. */
+.theme-dark .display-hero {
+  margin: 0;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: var(--weight-strong);
+  color: var(--ink-0);
+  text-wrap: balance;
+}
+
+/* Pipeline conduit container: relative box with a gradient track line. */
+.theme-dark .ribbon {
+  position: relative;
+  overflow: clip;
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  padding: var(--pad-panel);
+  min-height: 120px;
+}
+
+/* The conduit line itself — decorative, never a layout participant. */
+.theme-dark .ribbon::before {
+  content: "";
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--signal-soft),
+    var(--signal) 30%,
+    var(--ice) 70%,
+    var(--signal-soft)
+  );
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Traveling pulse dot. Full-width transparent carrier so the %-translate
+   spans the container width; the visible dot lives in ::after. Transform-only
+   motion (never touches layout). Stagger via inline animation-delay. */
+.theme-dark .ribbon-pulse {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+  animation: ribbon-travel 3s linear infinite;
+  will-change: transform;
+}
+
+.theme-dark .ribbon-pulse::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 12px rgba(255, 178, 36, 0.8);
+  transform: translateY(-50%);
+}
+
+/* Secondary (ice) pulse variant for the 2nd/3rd dots. */
+.theme-dark .ribbon-pulse.ice::after {
+  background: var(--ice);
+  box-shadow: 0 0 12px rgba(124, 199, 255, 0.8);
+}
+
+@keyframes ribbon-travel {
+  from {
+    transform: translate3d(-16px, 0, 0);
+  }
+  to {
+    transform: translate3d(calc(100% + 16px), 0, 0);
+  }
+}
+
+/* Console tile with status glow — glow via box-shadow only, borders stay
+   1px so status is never carried by layout shift. */
+.theme-dark .tile-glow {
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-md);
+}
+
+.theme-dark .tile-glow-action {
+  border-color: rgba(255, 178, 36, 0.4);
+  box-shadow:
+    0 0 24px rgba(255, 178, 36, 0.18),
+    var(--shadow-md);
+}
+
+.theme-dark .tile-glow-info {
+  border-color: rgba(124, 199, 255, 0.4);
+  box-shadow:
+    0 0 24px rgba(124, 199, 255, 0.18),
+    var(--shadow-md);
+}
+
+.theme-dark .tile-glow-neutral {
+  border-color: var(--line-1);
+  box-shadow: var(--shadow-md);
+}
+
+/* Active nav indicator: 2px amber inset rule (dark routes only). */
+.theme-dark .edge-light {
+  box-shadow: inset 2px 0 0 var(--signal);
+}
+
+/* Signal-amber primary button. `.btn.primary` (light) is untouched. */
+.theme-dark .btn-signal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--signal);
+  border-radius: var(--radius-sm);
+  background: var(--signal);
+  color: #1a1206;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
+    transform var(--dur-instant) var(--ease-standard);
+}
+
+.theme-dark .btn-signal:hover:not(:disabled) {
+  background: var(--signal-hover);
+  border-color: var(--signal-hover);
+  box-shadow: 0 0 24px rgba(255, 178, 36, 0.35);
+}
+
+.theme-dark .btn-signal:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.theme-dark .btn-signal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.theme-dark .btn-signal:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* Tabular numerals for animated stats. Theme-neutral utility (no colour);
+   takes effect only where applied (dark dashboard tiles). */
+.stat-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Ribbon pulses frozen — position holds at the start of the track. */
+  .theme-dark .ribbon-pulse {
+    animation: none;
+  }
+}
+
+/* 390px: ribbon stacks below the headline (markup grid collapses via the
+   page layout); the track stays horizontal and pulses keep their
+   transform-only motion — never disabled for size. */
+@media (max-width: 480px) {
+  .theme-dark .ribbon {
+    margin-top: var(--space-4);
+    min-height: 96px;
+    padding: var(--space-4);
+  }
+}
