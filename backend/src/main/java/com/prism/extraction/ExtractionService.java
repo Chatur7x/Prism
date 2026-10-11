@@ -8,6 +8,7 @@ import com.prism.document.DocumentChunk;
 import com.prism.document.DocumentRepository;
 import com.prism.document.DocumentStatus;
 import com.prism.document.DocumentChunkRepository;
+import com.prism.knowledge.PredicateSemanticRegistry;
 import com.prism.llm.LlmCompletion;
 import com.prism.llm.LlmPermanentException;
 import com.prism.llm.LlmTransientException;
@@ -56,6 +57,7 @@ public class ExtractionService {
     private final DocumentRepository documents;
     private final DocumentChunkRepository chunks;
     private final com.prism.document.DocumentStatusService documentStatus;
+    private final PredicateSemanticRegistry predicates;
 
     public ExtractionService(ExtractionRunRepository runs,
                              ExtractionResultParser parser,
@@ -66,7 +68,8 @@ public class ExtractionService {
                              PrismMetrics metrics,
                              DocumentRepository documents,
                              DocumentChunkRepository chunks,
-                             com.prism.document.DocumentStatusService documentStatus) {
+                             com.prism.document.DocumentStatusService documentStatus,
+                             PredicateSemanticRegistry predicates) {
         this.runs = runs;
         this.parser = parser;
         this.persistence = persistence;
@@ -77,6 +80,7 @@ public class ExtractionService {
         this.documents = documents;
         this.chunks = chunks;
         this.documentStatus = documentStatus;
+        this.predicates = predicates;
     }
 
     /** Result of processing one document. */
@@ -107,7 +111,7 @@ public class ExtractionService {
         TraceRun traceRun = traces.startRun(TraceOperationType.EXTRACTION, document.getCorpus(),
                 document, document.getUploader(), "extract:document:" + documentId, null);
         ExtractionRun run = persistence.startRun(document, chunkList.size(),
-                llmProperties.extractModel());
+                llmProperties.extractModel(), Prompts.EXTRACT_V2);
         documentStatus.updateStatus(documentId, DocumentStatus.EXTRACTING);
 
         TraceStep root = traces.record(traceRun.getId(), null, ActorType.ENGINE,
@@ -169,23 +173,27 @@ public class ExtractionService {
      */
     private ChunkResult processChunk(ExtractionRun run, Document document, DocumentChunk chunk,
                                      Long traceRunId, TraceStep parent) {
+        // V2 teaches the closed predicate list from the authoritative registry,
+        // generated per call so the prompt can never drift from the validator.
+        String system = Prompts.extractSystem(predicates.knownPredicateNames());
         traces.record(traceRunId, parent, ActorType.LLM, TraceEventType.LLM_REQUEST,
                 "Extraction request for chunk " + chunk.getId(),
                 TraceRecorder.StepPayload.builder()
                         .inputSummary("chunk " + chunk.getId() + " (" + chunk.getTokenEstimate() + " tokens)")
                         .inputRefs(List.of(chunk.getId()))
-                        .promptVersion(Prompts.EXTRACT_V1)
+                        .promptVersion(Prompts.EXTRACT_V2)
                         .model(llmProperties.extractModel())
                         .outputSummary("source text passed as untrusted DATA, not as instructions")
                         .build());
 
         LlmCompletion completion;
         try {
-            completion = llm.complete(Prompts.extractSystem(), Prompts.extractUser(chunk),
-                    LlmProperties.Purpose.EXTRACT, Prompts.EXTRACT_V1,
+            completion = llm.complete(system, Prompts.extractUser(chunk),
+                    LlmProperties.Purpose.EXTRACT, Prompts.EXTRACT_V2,
                     "extract:chunk:" + chunk.getId(), traceRunId, parent);
         } catch (LlmPermanentException ex) {
             persistence.persistQuarantine(run, document, chunk, null, llmProperties.extractModel(),
+                    Prompts.EXTRACT_V2,
                     QuarantineReason.PROVIDER_ERROR, ex.getMessage(), 1);
             traces.failure(traceRunId, parent, ActorType.LLM, TraceEventType.QUARANTINED,
                     "Provider permanently rejected the extraction request", ex.getMessage());
@@ -193,6 +201,7 @@ public class ExtractionService {
             return new ChunkResult(0, 0, true);
         } catch (LlmTransientException ex) {
             persistence.persistQuarantine(run, document, chunk, null, llmProperties.extractModel(),
+                    Prompts.EXTRACT_V2,
                     QuarantineReason.PROVIDER_TIMEOUT, ex.getMessage(), llmProperties.maxRetries());
             traces.failure(traceRunId, parent, ActorType.LLM, TraceEventType.QUARANTINED,
                     "Provider retries exhausted for this chunk", ex.getMessage());
@@ -205,13 +214,14 @@ public class ExtractionService {
 
         if (!outcome.success()) {
             persistence.persistQuarantine(run, document, chunk, completion.rawText(),
-                    completion.model(), outcome.reason(), outcome.message(), completion.attempt());
+                    completion.model(), Prompts.EXTRACT_V2,
+                    outcome.reason(), outcome.message(), completion.attempt());
             traces.record(traceRunId, parent, ActorType.ENGINE, TraceEventType.VALIDATION_FAILED,
                     "Extraction response rejected by validation",
                     TraceRecorder.StepPayload.builder()
                             .status("REJECTED")
                             .inputRefs(List.of(chunk.getId()))
-                            .promptVersion(Prompts.EXTRACT_V1)
+                            .promptVersion(Prompts.EXTRACT_V2)
                             .model(completion.model())
                             .outputSummary(outcome.reason().name() + ": " + outcome.message())
                             .build());
@@ -230,7 +240,7 @@ public class ExtractionService {
                 "Extraction response accepted",
                 TraceRecorder.StepPayload.builder()
                         .inputRefs(List.of(chunk.getId()))
-                        .promptVersion(Prompts.EXTRACT_V1)
+                        .promptVersion(Prompts.EXTRACT_V2)
                         .model(completion.model())
                         .outputSummary("triples=" + persisted.triples()
                                 + " claims=" + persisted.claims())

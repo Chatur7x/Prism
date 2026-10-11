@@ -36,7 +36,7 @@ import java.util.Set;
  * simply did not exist. This is the smallest thing that makes them exist.
  *
  * <p><b>It runs the production path, not a parallel one.</b> The same
- * {@link Prompts#extractSystem()}, the same {@link Prompts#extractUser}, the same
+ * {@link Prompts#extractSystem(java.util.Set)}, the same {@link Prompts#extractUser}, the same
  * {@link RetryingLlmService} with its retry policy, and the same
  * {@link ExtractionResultParser}. A harness with its own prompt would measure the
  * harness. Everything up to and including parsing and validation is shared with
@@ -337,7 +337,7 @@ public class LlmExtractionEvaluationService {
         return new ExtractionReport(
                 provider.providerName(),
                 llmProperties.extractModel(),
-                Prompts.EXTRACT_V1,
+                Prompts.EXTRACT_V2,
                 llmProperties.temperature(),
                 llmProperties.maxTokens(),
                 llmProperties.maxRetries(),
@@ -374,8 +374,10 @@ public class LlmExtractionEvaluationService {
             // The same call production makes, including the retry policy. A
             // traceRunId of null records nothing, which is deliberate: this must
             // not appear in the Glass Box as if it were real pipeline work.
-            completion = llm.complete(Prompts.extractSystem(), Prompts.extractUser(chunk),
-                    LlmProperties.Purpose.EXTRACT, Prompts.EXTRACT_V1,
+            completion = llm.complete(
+                    Prompts.extractSystem(registry.knownPredicateNames()),
+                    Prompts.extractUser(chunk),
+                    LlmProperties.Purpose.EXTRACT, Prompts.EXTRACT_V2,
                     "llm-eval:chunk:" + chunk.getId(), null, null);
         } catch (LlmPermanentException ex) {
             return refuse(chunk, goldClaims, "PROVIDER_ERROR", 0, 1, ex.getMessage(), true, false);

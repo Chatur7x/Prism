@@ -61,9 +61,10 @@ public class ExtractionPersistenceService {
      * the pre-save instance forward would fail on the next write.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public ExtractionRun startRun(Document document, int chunkCount, String model) {
+    public ExtractionRun startRun(Document document, int chunkCount, String model,
+                                String promptVersion) {
         ExtractionRun run = new ExtractionRun(document, chunkCount,
-                com.prism.llm.Prompts.EXTRACT_V1, model);
+                promptVersion, model);
         run.markRunning(Instant.now());
         return runs.saveAndFlush(run);
     }
@@ -112,9 +113,10 @@ public class ExtractionPersistenceService {
     /** Records a rejected model response so the failure remains auditable. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void persistQuarantine(ExtractionRun run, Document document, DocumentChunk chunk,
-                                  String rawResponse, String model, QuarantineReason reason,
+                                  String rawResponse, String model, String promptVersion,
+                                  QuarantineReason reason,
                                   String message, int attempt) {
         quarantineRepository.save(new ExtractionQuarantine(run, document, chunk,
-                com.prism.llm.Prompts.EXTRACT_V1, model, rawResponse, reason, message, attempt));
+                promptVersion, model, rawResponse, reason, message, attempt));
     }
 }

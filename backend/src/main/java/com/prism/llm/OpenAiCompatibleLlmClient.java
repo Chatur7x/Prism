@@ -95,6 +95,11 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         payload.put("temperature", temperature);
         payload.put("max_tokens", props.maxTokens());
         payload.put("stream", false);
+        // Ask the provider to enforce a JSON object envelope. Groq, Ollama, and
+        // OpenAI all honour json_object on /chat/completions. This is a second
+        // net behind the prompt's JSON-only instruction, not a replacement for
+        // backend parsing and semantic validation, which still run unchanged.
+        payload.put("response_format", Map.of("type", "json_object"));
         payload.put("messages", java.util.List.of(
                 Map.of("role", "system", "content", system),
                 Map.of("role", "user", "content", user)));
