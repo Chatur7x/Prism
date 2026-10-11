@@ -15,7 +15,7 @@ export function LoginPage() {
   const expired = params.get('expired') === '1'
 
   return (
-    <div className="auth-page">
+    <div className="auth-page theme-dark">
       <div className="auth-brand">
         <div className="brand-mark" aria-hidden="true" />
         <div className="brand-text">PRISM</div>

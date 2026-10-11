@@ -18,7 +18,7 @@ const PIPELINE = [
 
 export function HomePage() {
   return (
-    <div className="home">
+    <div className="home theme-dark">
       <header className="home-bar">
         <div className="home-brand">
           <div className="brand-mark" aria-hidden="true" />

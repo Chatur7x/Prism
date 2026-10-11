@@ -113,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="app-shell">
+    <div className={location.pathname === '/dashboard' ? 'app-shell theme-dark' : 'app-shell'}>
       <nav className="sidebar" aria-label="Primary">
         <div className="brand">
           <div className="brand-mark" aria-hidden="true" />

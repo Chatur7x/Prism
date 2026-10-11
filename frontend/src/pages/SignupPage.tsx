@@ -13,7 +13,7 @@ export function SignupPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="auth-page">
+    <div className="auth-page theme-dark">
       <div className="auth-brand">
         <div className="brand-mark" aria-hidden="true" />
         <div className="brand-text">PRISM</div>
