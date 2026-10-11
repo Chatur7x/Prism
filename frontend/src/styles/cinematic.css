@@ -1,0 +1,285 @@
+/*
+ * Cinematic layer — STAGE 1: design system v2 as pure CSS.
+ *
+ * SCOPE CONTRACT
+ *   Spectral dark-chrome rules are scoped under `.theme-dark` (same toggle
+ *   as dark-shell.css: AppShell, HomePage, LoginPage, SignupPage). Removing
+ *   the class reverts everything. The unscoped rules below are inert,
+ *   theme-neutral utilities (token-driven type, layout, and light-safe
+ *   primitives) that take effect only where the class names are applied —
+ *   the same precedent as `.stat-tabular` / `.citation-lift` in
+ *   dark-shell.css §9. No unscoped rule sets a theme-specific colour, so
+ *   light routes are byte-identical with or without this file.
+ *
+ * LAYER ORDER
+ *   Imported LAST in main.tsx (after dark-shell.css) so it wins ties. It
+ *   reads the existing token vocabulary (`--dur-*`, `--ease-*`,
+ *   `--radius-*`, `--space-*`, `--z-*`) and never redefines it. Spectral
+ *   tokens live here as `.theme-dark` overrides, not in tokens.css, so the
+ *   audit system's single-source tokens stay canonical.
+ *
+ * TWO SYSTEMS, ONE FILE
+ *   Spectral (violet/indigo/cyan) = knowledge, graph, and cinematic
+ *   surfaces. Signal amber (`--signal: #ffb224`, owned by dark-shell.css
+ *   §10) = verdict and CTA moments only. Spectral never spends amber, and
+ *   nothing here redefines `--signal`: when a surface must decide, the
+ *   verdict accent wins and the spectrum yields.
+ */
+
+/* ==========================================================================
+   1. SPECTRAL RAMP TOKENS (.theme-dark scope)
+   ==========================================================================
+   Same re-picking discipline as the dark palette: vivid hues chosen to
+   read on abyss backgrounds. The gradient runs 135deg so it descends with
+   the reading direction instead of fighting it. */
+
+.theme-dark {
+  --spect-violet: #8b5cf6; /* knowledge/graph primary */
+  --spect-indigo: #6366f1; /* bridge stop: violet -> cyan without mud */
+  --spect-cyan: #22d3ee; /* cinematic highlight, never body text */
+  --spect-gradient: linear-gradient(
+    135deg,
+    var(--spect-violet),
+    var(--spect-indigo),
+    var(--spect-cyan)
+  );
+  /* Verdict accent stays signal amber (#ffb224, dark-shell.css §10).
+     Both systems coexist: spectral for knowledge/graph/cinematic
+     surfaces, amber for verdict/CTA moments. */
+}
+
+/* ==========================================================================
+   2. DISPLAY TYPE SCALE
+   ==========================================================================
+   Theme-neutral (ink tokens adapt per theme), inert until applied.
+   Mega is for one headline per viewport — never body, never cards — so its
+   -0.045em tracking survives only at this size. `text-wrap: balance` keeps
+   the clamp from orphaning a single word on a 390px line. */
+
+.display-mega {
+  margin: 0;
+  font-size: clamp(3rem, 8vw, 6rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  font-weight: var(--weight-strong);
+  color: var(--ink-0);
+  text-wrap: balance;
+  max-width: 100%;
+}
+
+.display-section {
+  margin: 0;
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: var(--weight-strong);
+  color: var(--ink-0);
+  text-wrap: balance;
+  max-width: 100%;
+}
+
+/* The reading measure is capped at 62ch: evidence prose is read for
+   minutes, and an uncapped lede on a 1200px shell is a skim, not a read. */
+.lede {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--ink-1);
+  max-width: 62ch;
+}
+
+/* ==========================================================================
+   3. GLASS V2 + LIGHT-SAFE PRIMITIVES
+   ==========================================================================
+   `.glass-strong` is the deep cinematic panel: heavier blur plus
+   saturation lift (frosted, not fogged), a spectral-tinted gradient
+   border, and the overlay shadow so it reads nearer than `.glass`.
+   Dark-scoped; falls back to solid panel under
+   `prefers-reduced-transparency` (see §5). */
+
+.theme-dark .glass-strong {
+  background:
+    linear-gradient(var(--surface-glass), var(--surface-glass)) padding-box,
+    linear-gradient(
+        135deg,
+        rgba(139, 92, 246, 0.38),
+        rgba(99, 102, 241, 0.12) 40%,
+        rgba(34, 211, 238, 0.3)
+      )
+      border-box;
+  background-color: var(--surface-glass);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: var(--shadow-overlay);
+}
+
+/* -- light-safe primitives (theme-neutral, token-driven) ---------------- */
+/* Mono terminal pill: machine identity (trace ids, model names, run
+   refs) in one quiet chip. Surface-inset reads as recessed on both
+   themes, so the chip looks stamped-in rather than stuck-on. */
+.term-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  color: var(--ink-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  white-space: nowrap;
+}
+
+/* Stat card: one number (the point), one label (what of), one delta
+   (which way, with its own ink so direction is never colour-alone —
+   pair a ▲/▼ or +/- glyph in markup). */
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--pad-card);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.stat-card-number {
+  margin: 0;
+  font-size: var(--text-stat);
+  line-height: var(--leading-stat);
+  letter-spacing: var(--tracking-stat);
+  font-weight: var(--weight-emphasis);
+  color: var(--ink-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card-label {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  letter-spacing: var(--tracking-caption);
+  color: var(--ink-2);
+}
+
+.stat-card-delta {
+  margin: 0;
+  font-size: var(--text-secondary);
+  line-height: var(--leading-secondary);
+  font-weight: var(--weight-medium);
+  color: var(--ink-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Centred column rhythm: the 1200px cap is the self-critique width from
+   dark-shell.css §11, shared so home and cinematic sections align. */
+.section-shell {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: var(--pad-page);
+  padding-block: var(--space-9);
+}
+
+/* Eyebrow: a small semibold label in normal case. Deliberately NOT the
+   letterspaced-all-caps overline voice — that register belongs to the
+   audit system (`--text-overline`); the cinematic register speaks quieter
+   and in sentence case. Ice on dark via --ice, accent fallback on light
+   where --ice is undefined. */
+.eyebrow {
+  margin: 0;
+  font-size: var(--text-secondary);
+  line-height: var(--leading-secondary);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ice, var(--accent));
+}
+
+/* ==========================================================================
+   4. SCROLL-STORY UTILITIES
+   ==========================================================================
+   Layout-only primitives for pinned scroll scenes. They position; a
+   companion JS pass (later stage) drives them. `100vh` first so older
+   engines get a full-viewport stage, then `100svh` so mobile chrome
+   stops resizing the scene mid-scroll. */
+
+.pin-stage {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-loose);
+  padding-block: var(--space-9);
+}
+
+/* The layer a scroll driver scales/translates. `transform-origin: center`
+   so growth reads as approach, not slide; `will-change` is revoked under
+   reduced motion (see §5) so static users pay no compositing cost. */
+.zoom-layer {
+  transform-origin: center;
+  will-change: transform;
+}
+
+/* Overflow wrapper for line-mask reveals: the inner line translates up
+   from below while the mask clips it — no layout shift, transform only. */
+.mask-line {
+  overflow: hidden;
+  overflow: clip;
+}
+
+/* ==========================================================================
+   5. FALLBACKS AND GUARDS
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Static users keep the final state, never the journey. */
+  .zoom-layer {
+    will-change: auto;
+  }
+
+  .pin-stage {
+    min-height: auto;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  /* Frosted becomes solid: the information a blur carried (elevation)
+     survives as a stronger border, same as `.glass` in dark-shell.css. */
+  .theme-dark .glass-strong {
+    background: var(--surface-0);
+    border: 1px solid var(--line-2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* 390px: the shell padding is the only fixed rhythm, so it is the only
+   thing that shrinks. Display sizes are clamp-fluid already; stat cards
+   stack via their parent grid, never here. `overflow: clip` on the
+   display classes keeps a long unbroken word (model id, trace) from
+   scrolling the viewport. */
+@media (max-width: 480px) {
+  .section-shell {
+    padding-inline: var(--space-4);
+    padding-block: var(--space-7);
+  }
+
+  .display-mega,
+  .display-section {
+    overflow-wrap: break-word;
+  }
+
+  .term-chip {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
